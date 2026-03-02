@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate demo data
+        run: python -m src.seed
+
+      - name: Run tests
+        # GEMINI_API_KEY intentionally absent — Gemini is mocked in tests
+        run: pytest -q --tb=short
+
+      - name: Verify imports
+        run: |
+          python -c "from src.data import load_data; print('data OK')"
+          python -c "from src.recommendations import recommend; print('recommendations OK')"
+          python -c "from src.recommendations.schema import validate; print('schema OK')"
