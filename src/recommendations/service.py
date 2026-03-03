@@ -44,21 +44,23 @@ def recommend(
     if not resolved_key:
         return heuristic.recommend(snapshot), _FALLBACK_NOTE
 
-    try:
-        raw = _groq.call_groq_once(
-            snapshot=snapshot,
-            api_key=resolved_key,
-            model=model,
-            temperature=temperature,
-            max_output_tokens=max_output_tokens,
-        )
-        parsed = _groq.parse_and_validate(raw)
-        if parsed is not None and is_valid(parsed):
-            return parsed, None
-        logger.warning("service: groq output invalid after repair; using heuristic")
-    except Exception as exc:
-        logger.warning("service: groq call failed (%s); using heuristic", exc)
+    for attempt in range(2):
+        try:
+            raw = _groq.call_groq_once(
+                snapshot=snapshot,
+                api_key=resolved_key,
+                model=model,
+                temperature=temperature,
+                max_output_tokens=max_output_tokens,
+            )
+            parsed = _groq.parse_and_validate(raw)
+            if parsed is not None and is_valid(parsed):
+                return parsed, None
+            logger.warning("service: groq output invalid after repair; using heuristic")
+        except Exception as exc:
+            logger.warning("service: groq attempt %s failed (%s)", attempt + 1, exc)
 
+    logger.exception("service: groq all attempts failed; using heuristic")
     return heuristic.recommend(snapshot), _FALLBACK_NOTE
 
 
