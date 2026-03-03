@@ -1,285 +1,236 @@
-# Day-One Operations Readiness Control Tower
+# Al Hamra — Operations Readiness Control Tower
 
-A production-ready Streamlit demo for Day-One opening readiness, featuring:
+An interview-grade Streamlit demo for venue and destination operations readiness. The repository opens with meaningful data immediately, runs without an API key, and shows traceable readiness, evidence, incident, vendor, OT, and ticketing signals in one control tower.
 
-- **Evidence-driven readiness gates** (G1–G5: Assets, Acceptance, SOPs, Monitoring, Dry Run)
-- **Incident operations** — MTTA/MTTR, severity tracking, escalation logs
-- **Vendor scorecards** — SLA compliance and breach visibility
-- **OT Events monitor** — BMS / Access Control / CCTV alarm unacked tracking
-- **Ticketing KPIs** — gate scan success rate, QR latency p95, throughput anomaly detection
-- **Live AI recommendations** — Groq-powered (with heuristic offline fallback)
+> These are common example systems for large venues; the demo is source-agnostic and connectors can be swapped to match the actual environment.
 
-> ⚡ Synthetic dataset — evidence-driven readiness model — example system landscape labels  
-> 🔑 Works fully offline without a Groq API key (heuristic mode)
+## What the demo covers
 
----
+- Overview
+- Readiness heatmap
+- Evidence pack
+- Incidents
+- Vendor scorecards
+- Recommendations
+- OT Events
+- Ticketing KPIs
+- System Landscape
 
-## Typical Production Systems (Examples)
+## Key behaviors
 
-The demo labels data with realistic source-system references drawn from these categories:
+- Deterministic synthetic data is auto-generated on startup if any required CSV is missing.
+- The app works fully offline through a deterministic heuristic recommendations engine.
+- If a Groq key is available, the Recommendations page streams a fast Draft preview first and then renders the Final authoritative structured JSON.
+- Only the Final authoritative JSON drives the structured panels and exports.
 
-| Category | Example Systems |
-|---|---|
-| CMDB / Asset Register | ServiceNow CMDB, Maximo Asset Mgr, IBM Control Desk |
-| ITSM / Ticketing | ServiceNow ITSM, Jira Service Mgmt, Remedy ITSM |
-| EDMS / Evidence | SharePoint Online, Confluence, Documentum |
-| Monitoring / Observability | Dynatrace, Datadog, Grafana + Prometheus, Splunk |
-| OT / BMS / Access Control | Siemens BMS, Johnson Controls Metasys, Honeywell EBI, CCURE-9000 |
-| Venue Ticketing | Ticketmaster Archtics, AXS Hub, SEATAC, Paciolan |
-| ORR Tracker | PowerBI Embedded, Jira Board, Smartsheet |
+## Quickstart
 
-> These are **example labels only** — not indicative of any specific deployment.
+### Windows PowerShell
 
----
-
-## Quick Start
-
-### 1. Create a virtual environment
-
-**Windows PowerShell:**
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+streamlit run app.py
 ```
 
-**WSL / Linux / macOS:**
+### WSL / Linux / macOS
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-```
-
-### 2. Install dependencies
-```bash
-pip install -U pip
+python -m pip install --upgrade pip
 pip install -r requirements.txt
+streamlit run app.py
 ```
 
-### 3. Generate demo data
+### Optional seed regeneration
+
 ```bash
 python -m src.seed
 ```
 
-### 4. Set the Groq API key (optional — app works offline without it)
+The app normally handles this automatically through `ensure_data_present()`.
 
-**Option A — environment variable (recommended):**
+## Safe key setup
+
+The key lookup order is:
+
+1. `st.secrets["GROQ_API_KEY"]`
+2. `GROQ_API_KEY` environment variable
+3. Optional session-only paste in the Recommendations page
+
+### Environment variable
+
 ```powershell
-# Windows PowerShell
-$env:GROQ_API_KEY="YOUR_KEY_HERE"
-```
-```bash
-# WSL / Linux / macOS
-export GROQ_API_KEY="YOUR_KEY_HERE"
+$env:GROQ_API_KEY="your-groq-api-key"
 ```
 
-**Option B — Streamlit secrets (local only, never commit):**
+```bash
+export GROQ_API_KEY="your-groq-api-key"
+```
+
+### Streamlit secrets
+
 ```bash
 cp .streamlit/secrets.toml.example .streamlit/secrets.toml
-# Edit secrets.toml and add your real key
 ```
 
-### 5. Run the app
-```bash
-streamlit run app.py
-```
+Then edit `.streamlit/secrets.toml` locally. Do not commit it.
 
-**Or use the convenience scripts:**
-```powershell
-# Windows PowerShell (auto-creates venv, seeds data, launches app)
-.\scripts\run.ps1 -Key "YOUR_KEY"  # Key is optional
-```
-```bash
-# WSL / Linux / macOS
-bash scripts/run.sh "YOUR_KEY"  # Key is optional
-```
+### No key
 
----
+No key is required. The recommendations page will use the deterministic heuristic path and still return the same JSON schema as the LLM path.
 
-## 3-Minute Interview Demo Script
+## Typical Production Systems (Examples)
 
-> Follow this click order when presenting to a hiring panel or stakeholder.
+### Enterprise / Corporate
 
-### Step 1 — Overview (30 s)
-- Open **Overview** page
-- Point to the 4 KPI cards: RED gates, missing evidence, open Sev-1/2 incidents, vendor breaches
-- Say: *"This is the operational posture at a glance. Our Go/No-Go criterion is zero RED gates, zero open Sev-1/2, and evidence completion ≥ 90%."*
+- ITSM/CMDB: ServiceNow, Jira Service Management, BMC Remedy, Freshservice
+- CMMS/EAM: IBM Maximo, SAP PM, Oracle EAM
+- EDMS/Document Control: SharePoint/M365, Generic EDMS
+- ERP/Enterprise Apps: SAP S/4HANA, Oracle ERP
+- Guest/CRM: Microsoft Dynamics 365, Adobe Experience, Sprinklr
+- Observability/Monitoring: Azure Monitor/Log Analytics, Prometheus/Grafana, Datadog, New Relic
+- Logging/SIEM: Splunk, Elastic/ELK, Microsoft Sentinel
 
-### Step 2 — Readiness Heatmap (45 s)
-- Open **Readiness** page
-- Use "Minimum criticality" filter → set to 3 (highest)
-- Point to RED cells in the heatmap
-- Scroll to the blocker table
-- Say: *"The heatmap shows us exactly which service/gate combinations are blocking sign-off, and who owns each blocker."*
+### Venue / OT and Visitor Systems
 
-### Step 3 — Evidence Pack (30 s)
-- Open **Evidence Pack** page
-- Filter **Status = MISSING**
-- Say: *"Here's the chase list. Every missing item has an owner and a note. I can download this and run a chase email in 30 seconds."*
+- OT Events Feed: BMS / Access Control / CCTV Event Feed
+- BMS/Facilities vendors: Honeywell, Siemens, Johnson Controls, Schneider Electric
+- VMS/CCTV: Genetec, Milestone
+- Access Control: HID
+- Ticketing and Gate Validation: accesso Horizon, Generic Ticketing/Gate Validation Platform
+- POS/Payments: POS System + Payment Gateway Telemetry
+- Network/Wi-Fi/NAC: Network Monitoring Platform
+- Queue/Footfall Analytics: Crowd/Queue Analytics
+- Digital Signage: Signage CMS
 
-### Step 4 — Incidents (30 s)
-- Open **Incidents** page
-- Look at MTTA/MTTR KPI cards
-- Filter **Severity = 1**
-- Say: *"MTTA and MTTR are the key escalation discipline metrics. Sev-1 incidents with no RCA completed are red flags before Day-One."*
+> These labels are examples only and are not claims about a deployed environment.
 
-### Step 5 — OT Events (30 s)
-- Open **OT Events** page
-- Filter **Unacked only = ON**
-- Point to Sev-1 / Sev-2 unacked cards and mean ack time
-- Say: *"Unacked Sev-1 alarms before Day-One are an automatic Go/No-Go blocker. The subsystem cluster chart shows which zone is the hotspot."*
+## Data lineage
 
-### Step 6 — Ticketing KPIs (30 s)
-- Open **Ticketing KPIs** page
-- Point to anomaly windows KPI card and the scan success rate chart
-- Say: *"Gate scan success below 97% or QR latency above 1500 ms is flagged as an anomaly. The offline-fallback counter tells us if payment connectivity is unreliable."*
+Every dataset includes `source_system` plus realistic traceable IDs. Examples:
 
-### Step 7 — Recommendations (45 s)
-- Open **Recommendations** page
-- Click **Generate Recommendations**
-- Point to OT Signals, Ticketing Signals, Top Risks, Actions — Next 24h
-- Say: *"The recommendation schema now carries OT and ticketing signals alongside incident and vendor data. Schema validation and heuristic fallback are always active."*
+- `services.csv`: `service_id`, `ci_id`
+- `readiness.csv`: `source_system`, gate ownership, dependency context
+- `evidence.csv`: `evidence_id`, `doc_ref`, `punch_list_id`
+- `incidents.csv`: `incident_id`, `source_id`
+- `vendors.csv`: `dashboard_ref`
+- `kpis.csv`: `dashboard_ref`
+- `ot_events.csv`: `ot_event_id`, `device_id`, `linked_incident_id`
+- `ticketing_kpis.csv`: `linked_incident_id`, venue/time traces
 
-### Closing
-> *"The full stack is: data seed → system landscape → metrics → structured recommendations → schema validation → graceful fallback. Everything is testable and auditable."*
+Each page includes a Data lineage section that surfaces the example source labels and sample trace references used in the rendered view.
 
----
+## Recommendations strategy
 
-## Data Model
+- Draft / Preview: small Groq model, streamed text, non-authoritative
+- Final authoritative result: larger Groq model, strict JSON only
+- Validation: stdlib schema validation with one repair attempt
+- Failure path: deterministic heuristic fallback with the same schema
 
-| File | Description |
-|---|---|
-| `data/services.csv` | 6 services with criticality, vendor, source_system, CI ID |
-| `data/readiness.csv` | Service × gate status (GREEN/AMBER/RED) with blockers |
-| `data/evidence.csv` | Evidence items with owner, status, doc_ref, approval |
-| `data/incidents.csv` | Incidents with MTTA/MTTR timestamps, category, SLA breach flag |
-| `data/vendors.csv` | Vendor SLA targets vs actuals, escalation level, penalty risk |
-| `data/kpis.csv` | Hourly KPI time series (7 days) |
-| `data/ot_events.csv` | OT/BMS/Access/CCTV alarms (80 rows, 7-day window, EVT-OT IDs) |
-| `data/ticketing_kpis.csv` | Gate ticketing KPIs at 15-min intervals × 48 h × 6 venue areas |
+The canonical JSON sections are:
 
-All files are auto-generated on startup by `ensure_data_present()` (deterministic, seed=42).
-Manual regeneration: `python -m src.seed`
+- `summary`
+- `top_risks`
+- `next_actions`
+- `incident_improvements`
+- `vendor_flags`
+- `ot_signals`
+- `ticketing_signals`
 
-### Data lineage
-Every record carries:
-- `source_system` — example label from production system category (CMDB, ITSM, OT, etc.)
-- Appropriate trace IDs: `ci_id`, `source_id`, `doc_ref`, `punch_list_id`, `dashboard_ref`, `event_id`, `device_id`
+## 3-minute interview demo script
 
----
+1. Overview
+   Say: "This is the executive posture. The launch threshold is zero RED gates, zero open Sev-1/2 incidents, and a nearly complete evidence pack."
+2. Readiness heatmap
+   Say: "This shows exactly which service and gate combinations still block launch, plus the named owner and dependency."
+3. Evidence pack
+   Say: "Here is the document chase list with traceable refs, approvers, and approval status."
+4. Incidents
+   Say: "This is the live operational stability picture: MTTA, MTTR, severity mix, and SLA discipline."
+5. Vendor scorecards
+   Say: "This view shows which partners are inside or outside contract and where penalty exposure starts."
+6. OT Events
+   Say: "This is the facilities and security event picture with alarm severity, zones, acknowledgement discipline, and linked incidents."
+7. Ticketing KPIs
+   Say: "This is the guest-entry performance picture: scan success, QR latency, throughput, and fallback activation."
+8. Recommendations
+   Say: "The Draft preview is fast, but the Final authoritative JSON is the only structured output used by the page and exports."
+9. System Landscape
+   Say: "These are example system labels. The connectors can be swapped to match the real environment without changing the control tower contract."
 
-## Architecture
-
-```
-app.py                          # Streamlit entry point (auto-seeds on startup)
-pages/
-  0_Overview.py                 # KPI dashboard
-  1_Readiness.py                # Heatmap + blocker table
-  2_Evidence_Pack.py            # Evidence chase list
-  3_Incidents.py                # MTTA/MTTR analysis
-  4_Vendor_Scorecards.py        # SLA compliance
-  5_Recommendations.py          # Groq + fallback (OT + ticketing signals)
-  6_OT_Events.py                # BMS/Access Control/CCTV alarm monitor
-  7_Ticketing_KPIs.py           # Gate scan success, QR latency, throughput
-src/
-  system_landscape.py           # System category registry, badges, thresholds
-  data.py                       # Data loader + ensure_data_and_load()
-  metrics.py                    # MTTA/MTTR, readiness, vendor, OT, ticketing
-  seed.py                       # Deterministic demo data generator (8 datasets)
-  domain/constants.py           # Gate definitions, KPI targets
-  ai/groq_recommender.py        # Groq SDK adapter (streaming)
-  recommendations/
-    schema.py                   # JSON schema + stdlib validation + is_valid()
-    heuristic.py                # Offline deterministic recommender
-    groq_adapter.py             # Groq call + JSON parse + repair
-    service.py                  # Public entry point (Groq → fallback)
-  utils/json_utils.py           # Robust JSON extraction from LLM output
-tests/
-  test_metrics.py
-  test_ot_metrics.py            # OT event aggregation tests
-  test_ticketing_metrics.py     # Ticketing KPI anomaly detection tests
-  test_json_utils.py
-  test_schema.py
-  test_heuristic.py
-  test_recommendations_integration.py
-```
-
----
-
-## Running Tests
+## Tests and quality gates
 
 ```bash
+pip check
 pytest -q
 ```
 
-Tests run fully offline — Groq is mocked. No API key required.
+The pytest suite includes:
 
-```bash
-# With coverage (optional)
-pip install pytest-cov
-pytest -q --cov=src --cov-report=term-missing
-```
-
----
+- schema validation
+- heuristic fallback behavior
+- recommendations integration with mocked Groq calls
+- metrics tests
+- Streamlit page smoke tests
+- auto-seed regeneration checks
 
 ## Packaging
 
-Create a distributable ZIP (excludes `.venv`, secrets, evidence logs):
+Create the clean demo zip:
 
 ```powershell
-# Windows
 .\scripts\package_zip.ps1
 ```
+
 ```bash
-# WSL / Linux / macOS
 bash scripts/package_zip.sh
 ```
 
-Output: `seven_control_tower_gemini_demo.zip`
+Output:
 
----
+- `seven_control_tower_gemini_demo.zip`
 
-## Security Notes
+The zip excludes local secrets, venvs, logs, evidence, caches, and other development artifacts.
 
-- API keys are read from `GROQ_API_KEY` env var or `.streamlit/secrets.toml` (excluded from git).
-- No key is ever printed to logs or echoed in the UI.
-- Session-paste input in the sidebar is held in memory only; never written to disk.
-- `.gitignore` excludes `.env`, `secrets.toml`, `evidence/`, and `*.log`.
+## Repository structure
 
----
+```text
+app.py
+pages/
+src/
+tests/
+docs/
+scripts/
+```
 
 ## Troubleshooting
 
-| Problem | Fix |
-|---|---|
-| `FileNotFoundError: Missing data file` | Run `python -m src.seed` |
-| `ModuleNotFoundError: groq` | Run `pip install -r requirements.txt` |
-| Recommendations show "offline mode" | Set `GROQ_API_KEY` env var or use sidebar paste |
-| Port 8501 in use | `streamlit run app.py --server.port 8502` |
-| PowerShell execution policy error | `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser` |
-| Streamlit not found after venv | `.\.venv\Scripts\Activate.ps1` then retry |
-
----
+| Problem | Action |
+| --- | --- |
+| Missing CSV files | Run `python -m src.seed` or just open the app and let it auto-seed |
+| Recommendations run in heuristic mode | Set `GROQ_API_KEY` through env, Streamlit secrets, or the session-only field |
+| Streamlit port is busy | Run `streamlit run app.py --server.port 8502` |
+| PowerShell blocks script activation | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` |
+| Packaging zip contains unwanted files | Re-run the packaging scripts from a clean working tree |
 
 ## CHANGELOG
 
-### v2.0.0 — 2026-03-04
-- System landscape registry (`src/system_landscape.py`) — category badges, ID patterns, anomaly thresholds
-- 2 new datasets: `ot_events.csv` (80 rows, BMS/Access/CCTV alarms), `ticketing_kpis.csv` (15-min intervals, 48h, 6 areas)
-- 5 existing datasets extended with `source_system`, trace IDs, and domain fields
-- Auto-seed on `app.py` startup via `ensure_data_present()`
-- 2 new pages: OT Events monitor (page 6), Ticketing KPIs (page 7)
-- Landscape badge row on every page
-- Recommendations schema extended: `ot_signals`, `ticketing_signals`, `incident_improvements`, `vendor_flags`
-- Groq prompt updated for strict JSON with new schema keys
-- 2 new test files (61 tests total, all green)
+### v2.1.0 - 2026-03-03
 
-### v1.0.0 — 2026-03-03
-- Initial production-quality release
-- Multi-page Streamlit app with 6 pages
-- Deterministic data seed (6 services, 5 gates, incidents, vendors, KPI time series)
-- `src/recommendations/` package: schema, heuristic, groq adapter, service layer
-- Groq streaming + one-shot modes with schema validation + repair
-- Heuristic offline fallback (no API key required)
-- 5 test files: metrics, json_utils, schema, heuristic, integration (all mocked)
-- GitHub Actions CI (Python 3.11, 3.12)
-- Packaging scripts (PowerShell + bash)
-- `docs/DECISIONS.md` and `docs/EVIDENCE.md`
+- Renamed the demo shell to Al Hamra — Operations Readiness Control Tower
+- Added a fixed-timestamp deterministic seed so regenerated CSVs are stable across runs
+- Added the System Landscape page and expanded source-system example coverage
+- Standardized the app shell, data-lineage panels, executive status badges, and KPI card layout
+- Rebuilt recommendations around the new strict JSON schema with Draft preview plus Final authoritative output
+- Added Streamlit smoke tests for all pages and offline recommendation generation
+- Hardened packaging, gitignore rules, and CI dependency checks
+
+### v2.0.0 - 2026-03-03
+
+- Added OT events and ticketing KPI datasets and pages
+- Added heuristic fallback recommendations and Groq integration
+- Added packaging scripts, CI, and initial evidence/decision docs

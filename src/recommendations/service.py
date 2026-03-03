@@ -1,8 +1,3 @@
-"""Recommendation service: public entry point.
-
-Tries Groq if an API key is available; falls back to heuristic on any error.
-Never raises — always returns a valid recommendation dict.
-"""
 from __future__ import annotations
 
 import logging
@@ -10,79 +5,66 @@ import os
 from typing import Any, Generator
 
 from src.recommendations import heuristic
-from src.recommendations import groq_adapter as _groq
-from src.recommendations.schema import is_valid
+from src.recommendations import groq_adapter
 
 logger = logging.getLogger(__name__)
 
-_FALLBACK_NOTE = (
-    "⚠️ Groq recommendations unavailable (offline mode or API error). "
-    "Using heuristic recommendations based on current data."
+OFFLINE_WARNING = (
+    "Final authoritative recommendations are running in deterministic heuristic mode. "
+    "No Groq API key was available or the final JSON call failed."
 )
 
 
 def _get_api_key() -> str | None:
-    """Return API key from env; never from secrets (UI layer handles st.secrets)."""
     return os.environ.get("GROQ_API_KEY", "").strip() or None
 
 
 def recommend(
     snapshot: dict[str, Any],
+    *,
     api_key: str | None = None,
-    model: str = "llama-3.3-70b-versatile",
-    temperature: float = 0.2,
-    max_output_tokens: int = 1536,
-    stream: bool = False,
-) -> tuple[dict[str, Any], str | None]:
-    """Return (recommendation_dict, warning_message_or_None).
-
-    - recommendation_dict always satisfies the canonical schema.
-    - warning_message is set when heuristic fallback was used.
-    """
+    final_model: str = groq_adapter.DEFAULT_FINAL_MODEL,
+    temperature: float = 0.1,
+    max_output_tokens: int = 1600,
+) -> tuple[dict[str, Any], str | None, str]:
     resolved_key = api_key or _get_api_key()
-
     if not resolved_key:
-        logger.warning("No API key found in environment or secrets. Falling back to heuristic.")
-        return heuristic.recommend(snapshot), _FALLBACK_NOTE
+        logger.info("No API key available. Using heuristic recommendations.")
+        return heuristic.recommend(snapshot), OFFLINE_WARNING, "heuristic"
 
-    for attempt in range(2):
-        try:
-            raw = _groq.call_groq_once(
-                snapshot=snapshot,
-                api_key=resolved_key,
-                model=model,
-                temperature=temperature,
-                max_output_tokens=max_output_tokens,
-            )
-            parsed = _groq.parse_and_validate(raw)
-            if parsed is not None and is_valid(parsed):
-                return parsed, None
-            logger.warning("service: groq output invalid after repair; using heuristic")
-        except Exception as exc:
-            logger.warning("groq attempt %s failed (%s)", attempt + 1, exc)
+    try:
+        raw_text = groq_adapter.request_final_json(
+            snapshot,
+            api_key=resolved_key,
+            model=final_model,
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+        )
+        parsed = groq_adapter.parse_and_validate(raw_text)
+        if parsed is not None:
+            return parsed, None, "groq_final"
+        logger.warning("Groq final response was invalid after one repair pass. Falling back to heuristic.")
+    except Exception as exc:  # pragma: no cover - exercised in integration tests
+        logger.warning("Groq final request failed: %s", exc)
 
-    logger.exception("groq all attempts failed; falling back")
-    return heuristic.recommend(snapshot), _FALLBACK_NOTE
+    return heuristic.recommend(snapshot), OFFLINE_WARNING, "heuristic"
 
 
-def recommend_stream(
+def stream_draft_preview(
     snapshot: dict[str, Any],
-    api_key: str | None = None,
-    model: str = "llama-3.3-70b-versatile",
+    *,
+    api_key: str | None,
+    preview_model: str = groq_adapter.DEFAULT_PREVIEW_MODEL,
     temperature: float = 0.2,
-    max_output_tokens: int = 1536,
+    max_output_tokens: int = 420,
 ) -> Generator[str, None, None]:
-    """Yield raw text chunks from Groq streaming call.
-
-    Raises RuntimeError if no key is available (caller should check first).
-    """
     resolved_key = api_key or _get_api_key()
     if not resolved_key:
-        raise RuntimeError("No API key available for streaming")
-    yield from _groq.call_groq_stream(
-        snapshot=snapshot,
+        raise RuntimeError("No API key available for draft preview streaming.")
+    yield from groq_adapter.stream_draft_preview(
+        snapshot,
         api_key=resolved_key,
-        model=model,
+        model=preview_model,
         temperature=temperature,
         max_output_tokens=max_output_tokens,
     )
