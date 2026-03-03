@@ -9,6 +9,14 @@ import streamlit as st
 from src.seed import ensure_data_present
 from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
 from src.ui import apply_global_styles, render_color_legend, render_theme_settings
+from src.ui import apply_global_styles
+try:
+    from src.ui import render_theme_settings, render_color_legend
+except Exception:
+    def render_theme_settings():
+        return None
+    def render_color_legend():
+        return None
 
 st.set_page_config(
     page_title="Day-One Operations Readiness Control Tower",
