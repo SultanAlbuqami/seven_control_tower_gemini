@@ -255,16 +255,16 @@ def apply_global_styles() -> None:
           }
           [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
           [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] li {
-            color: #cbd5e1 !important;
+            color: #ffffff !important;
             line-height: 1.5;
           }
           [data-testid="stSidebar"] h1,
           [data-testid="stSidebar"] h2,
           [data-testid="stSidebar"] h3 {
-            color: #f1f5f9 !important;
+            color: #ffffff !important;
           }
           [data-testid="stSidebar"] label {
-            color: #94a3b8 !important;
+            color: #ffffff !important;
           }
 
           /* Expanders */
