@@ -1,115 +1,113 @@
-# Architecture & Decision Log
+# Architecture and Decision Log
 
-> Auto-generated during bootstrap on 2026-03-03. Update as decisions evolve.
+## D-001 - Recommendation engine layering
 
----
+Decision: keep recommendation logic split across `schema.py`, `heuristic.py`, `groq_adapter.py`, `service.py`, and `snapshot.py`.
 
-## D-001 · Recommendation engine split (schema / heuristic / groq / service)
+Why: the LLM path, the deterministic fallback path, and the snapshot aggregation path need to be testable in isolation.
 
-**Decision**: Wrap all recommendation logic inside `src/recommendations/` with four clear layers:
-- `schema.py` — canonical JSON schema + stdlib validation (no Pydantic dependency)
-- `heuristic.py` — deterministic offline fallback producing valid schema output
-- `groq_adapter.py` — thin adapter over Groq SDK with streaming support
-- `service.py` — public entry point; tries Groq first, falls back automatically
+## D-002 - No heavy schema dependency
 
-**Why**: Separation of concerns; fallback is unit-testable in isolation; UI is decoupled from API availability.
+Decision: keep schema validation in stdlib-only code instead of adding Pydantic or other validation frameworks.
 
----
+Why: the response contract is small, deterministic, and already covered by tests.
 
-## D-002 · No Pydantic
+## D-003 - Key lookup order
 
-**Decision**: Use stdlib `json` + custom schema validation helper to avoid adding Pydantic.
+Decision: resolve LLM credentials in this order:
 
-**Why**: requirements.txt already present; adding Pydantic adds ~15 MB and transitive deps. Simple dict-key validation is enough for the output schema.
+1. `st.secrets["GROQ_API_KEY"]`
+2. `GROQ_API_KEY` environment variable
+3. Optional session-only paste held in Streamlit session state
 
----
+Why: this matches the required security model while avoiding any writes to disk.
 
-## D-003 · API key handling
+## D-004 - Offline-safe recommendation contract
 
-**Decision**: Key lookup order — (1) `st.secrets["GROQ_API_KEY"]`, (2) `os.environ["GROQ_API_KEY"]`. Session-in-browser input is also supported for demos but explicitly not written to disk.
+Decision: `service.recommend()` never raises and always returns a valid canonical JSON payload, even if the LLM path fails.
 
-**Safe default**: If key absent → heuristic fallback activates. No crash.
+Why: the demo must remain usable with no key and with no network.
 
----
+## D-005 - Deterministic seed timestamp
 
-## D-004 · Offline-safe guarantee
+Decision: move the seed off `now()` and anchor it to a fixed UTC timestamp.
 
-**Decision**: `service.recommend()` NEVER propagates an exception to the UI. Any error (network, auth, parse) triggers heuristic fallback + a soft warning banner.
+Why: a random seed alone is not enough if timestamps drift on every run; the CSV outputs must be stable across regenerations.
 
----
+## D-006 - Example-system wording
 
-## D-005 · Data seed determinism
+Decision: keep all system labels explicitly marked as examples and repeat the source-agnostic disclaimer in both the UI shell and the README.
 
-**Decision**: `src/seed.py` uses `random.Random(42)` and `numpy` with fixed operations for reproducible demo data.
+Why: the system landscape is illustrative, not a claim about an actual deployment.
 
----
+## D-007 - Typical destination stack registry
 
-## D-006 · Page naming convention
+Decision: store the system landscape in `src/system_landscape.py` as the single source of truth for categories, label pools, trace fields, and ID-format rules.
 
-**Decision**: Pages use Streamlit numeric prefix (0-5) to enforce sidebar ordering. We keep the existing names to avoid breaking any bookmarks during iterative dev.
+Why: seed generation, lineage panels, and the System Landscape page all need the same definitions.
 
----
+## D-008 - Project-local dependency verification
 
-## D-007 · GitHub Actions CI
+Decision: run dependency and test verification from the repo-local `.venv`.
 
-**Decision**: CI runs `pytest -q` with no GROQ_API_KEY; Groq is fully mocked. No secrets required in the runner environment.
+Why: the global Python installation on the workstation contains unrelated package conflicts that are outside this repository.
 
----
+## D-009 - Dual-model recommendation strategy
 
-## D-008 · Packaging scripts
+Decision: use a small Groq model for the streamed Draft preview and a larger Groq model for the Final authoritative JSON.
 
-**Decision**: Provide both `scripts/package_zip.ps1` (Windows) and `scripts/package_zip.sh` (bash) producing `seven_control_tower_gemini_demo.zip`.
+Why: the preview improves perceived responsiveness, while the final pass preserves a strict structured contract.
 
-**Exclusions**: `.venv/`, `.streamlit/secrets.toml`, `evidence/`, `*.log`, `__pycache__/`.
+## D-010 - Authoritative result boundary
 
----
+Decision: only the Final authoritative JSON is allowed to populate structured recommendation panels and exports.
 
-## D-009 · System landscape registry
+Why: the Draft preview is intentionally non-authoritative text.
 
-**Decision**: Create `src/system_landscape.py` as the single source of truth for all system category definitions, label pools, ID patterns, and anomaly thresholds.
+## D-011 - Single repair attempt
 
-**Why**: Centralising landscape labels prevents drift between seed data, UI badge display, and recommendation context. A frozen dataclass (`SystemCategory`) is simpler than a config file and is type-checkable.
+Decision: allow exactly one local repair pass on LLM JSON before falling back to the heuristic engine.
 
-**Safe default**: Non-optional categories are listed in `CORE_BADGE_CATEGORIES`; all pages show the same badge row.
+Why: this satisfies the strict-output requirement without adding another remote round trip.
 
----
+## D-012 - Data lineage on every page
 
-## D-010 · OT events schema and generation
+Decision: every page ends with a Data lineage section that exposes `source_system` and representative trace references.
 
-**Decision**: `ot_events.csv` uses 80 rows over a 7-day window with `EVT-OT-XXXXXX` IDs, severity 1–4, subsystems BMS/AccessControl/CCTV, and NaT for unacknowledged events.
+Why: the interview narrative is stronger when every chart and table can be traced back to an example source and ID pattern.
 
-**Why**: 80 rows provides enough variance for meaningful filter/chart interactions while staying fast. NaT `ack_time` is the canonical representation of unacked state — avoids a separate `is_acked` boolean.
+## D-013 - Standard app shell
 
----
+Decision: centralize the page shell in `src/ui.py` with a common title, purpose line, disclaimer, sidebar guide, status badges, and KPI-card styling.
 
-## D-011 · Ticketing KPI schema and generation
+Why: the repo needed consistent visual hierarchy and status semantics instead of page-by-page variations.
 
-**Decision**: `ticketing_kpis.csv` uses 15-minute intervals × 48 hours × 6 venue areas with ~5% peak windows having injected anomalies.
+## D-014 - Fixed OK/WARN/CRIT semantics
 
-**Anomaly thresholds** (in `THRESHOLDS`):
-- `scan_success_rate_warn = 0.97`, `scan_success_rate_crit = 0.94`
-- `latency_warn_ms = 800`, `latency_crit_ms = 1500`
+Decision: keep the same OK/WARN/CRIT colors and thresholds across readiness, incidents, vendors, OT, and ticketing views.
 
-**Why**: 15-min granularity matches typical ops dashboards. 48h window spans full event-day rehearsal + Day-One. 5% anomaly injection provides realistic demo signal without overwhelming the charts.
+Why: executive viewers should not have to re-interpret colors from page to page.
 
----
+## D-015 - Streamlit smoke coverage
 
-## D-012 · Recommendation schema extension
+Decision: add `AppTest` smoke tests for the app shell, every page, and offline recommendation generation.
 
-**Decision**: Add four new required keys to the schema: `ot_signals`, `ticketing_signals`, `incident_improvements`, `vendor_flags`.
+Why: this is the most reliable local proof that the multi-page Streamlit app still renders after code changes.
 
-**Why**: Both the heuristic and Groq paths must always produce these fields so the UI can unconditionally render them. Making them required (not optional) prevents silent omissions from Groq and simplifies validation.
+## D-016 - Packaging exclusions
 
-**Safe default**: Each key defaults to a single-item list with a "nominal" or "no issues detected" message when no signal conditions are triggered.
+Decision: both packaging scripts exclude local secrets, logs, venvs, build artifacts, caches, evidence folders, and existing zip files.
 
----
+Why: the distributable zip must stay demo-clean and secret-free.
 
-## D-013 · Auto-seed on startup
+## D-017 - CI dependency sanity
 
-**Decision**: `app.py` calls `ensure_data_present()` on every page load (deferred import inside the function to avoid circular). Pages use `ensure_data_and_load()` from `src/data.py`.
+Decision: add `pip check` to the GitHub Actions workflow before test execution.
 
-**Why**: Eliminates the manual "Generate data" button as a first-run friction point. The check is O(n file stat calls) and completes in <10 ms if all files exist. If regeneration is needed, it runs once and is not repeated.
+Why: dependency health is part of the required quality gate, not just a local convenience.
 
-**Safe default**: Generation errors surface as `st.error()` banners; the app does not crash.
+## D-018 - Local secret-file handling during offline smoke
 
-**Decision**: Both `.ps1` (Windows PowerShell) and `.sh` (WSL/Linux/macOS) packaging scripts produce `seven_control_tower_gemini_demo.zip`, excluding `.venv/`, `.streamlit/secrets.toml`, `evidence/`, and `*.log`.
+Decision: when offline smoke verification is required, temporarily move the local `.streamlit/secrets.toml` file out of the way and restore it after the check.
+
+Why: a local developer secret should not accidentally convert an offline smoke into a live LLM test.
