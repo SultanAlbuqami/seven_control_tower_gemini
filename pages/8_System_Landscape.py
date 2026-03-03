@@ -35,6 +35,7 @@ rows = []
 for category in ALL_CATEGORIES:
     rows.append(
         {
+            "coverage": "Optional extension" if category.optional else "Core demo coverage",
             "family": category.family,
             "badge": category.badge_label,
             "full_name": category.badge_tooltip,
@@ -49,7 +50,10 @@ for category in ALL_CATEGORIES:
 render_section_header("Acronym guide", "Hover the badges at the top of every page to see these expansions.")
 st.dataframe(pd.DataFrame(acronym_guide_rows()), use_container_width=True, hide_index=True)
 
-render_section_header("Typical production systems (examples)", "Use this table when the panel asks how the control tower maps to a real venue landscape.")
+render_section_header(
+    "Typical production systems (examples)",
+    "The table includes both core demo coverage and optional extensions that deepen workforce, project, security, arrival, and command-center narratives.",
+)
 st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 render_section_header("Connector-swap concept", "The page layout stays fixed while connectors and source labels can be replaced behind the scenes.")

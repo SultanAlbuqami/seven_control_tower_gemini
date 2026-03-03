@@ -91,10 +91,13 @@ No key is required. The recommendations page will use the deterministic heuristi
 - CMMS/EAM: IBM Maximo, SAP PM, Oracle EAM
 - EDMS/Document Control: SharePoint/M365, Generic EDMS
 - Project Controls / PMIS: Oracle Primavera Unifier, PMWeb, Procore
+- Workforce Management / Rostering: UKG/Kronos Workforce Central, Oracle Workforce Management, SAP SuccessFactors Time Tracking
+- CDE / BIM / Handover: Autodesk Construction Cloud / BIM 360, Bentley ProjectWise, Procore Documents / Handover
 - ERP/Enterprise Apps: SAP S/4HANA, Oracle ERP
 - Guest/CRM: Microsoft Dynamics 365, Adobe Experience, Sprinklr
 - Observability/Monitoring: Azure Monitor/Log Analytics, Prometheus/Grafana, Datadog, New Relic
 - Logging/SIEM: Splunk, Elastic/ELK, Microsoft Sentinel
+- IAM / SSO: Microsoft Entra ID, Okta, Ping Identity
 
 ### Venue / OT and Visitor Systems
 
@@ -105,6 +108,8 @@ No key is required. The recommendations page will use the deterministic heuristi
 - Ticketing and Gate Validation: accesso Horizon, Generic Ticketing/Gate Validation Platform
 - POS/Payments: POS System + Payment Gateway Telemetry
 - Network/Wi-Fi/NAC: Network Monitoring Platform
+- Parking / Traffic / Mobility: Parking Guidance Platform, Traffic Operations Platform, Mobility Aggregator
+- CAD / Dispatch / Radio: Motorola Solutions CommandCentral, Hexagon CAD, Radio Dispatch Platform
 - Queue/Footfall Analytics: Crowd/Queue Analytics
 - Digital Signage: Signage CMS
 

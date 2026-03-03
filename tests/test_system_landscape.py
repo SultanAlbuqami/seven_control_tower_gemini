@@ -23,3 +23,28 @@ def test_acronym_guide_includes_pmis_and_itsm() -> None:
 
     assert guide["ITSM"] == "IT Service Management"
     assert guide["PMIS"] == "Project Management Information System"
+
+
+def test_extended_optional_categories_are_registered() -> None:
+    expected = {
+        "wfm_rostering",
+        "cde_bim_handover",
+        "parking_traffic_mobility",
+        "cad_dispatch_radio",
+        "iam_sso",
+    }
+
+    assert expected.issubset(CATEGORY_BY_SLUG)
+    for slug in expected:
+        assert CATEGORY_BY_SLUG[slug].optional is True
+
+
+def test_acronym_guide_includes_new_extension_layers() -> None:
+    guide = {row["abbreviation"]: row["full_name"] for row in acronym_guide_rows()}
+
+    assert guide["WFM"] == "Workforce Management"
+    assert guide["CDE"] == "Common Data Environment"
+    assert guide["BIM"] == "Building Information Modeling"
+    assert guide["CAD"] == "Computer-Aided Dispatch"
+    assert guide["IAM"] == "Identity and Access Management"
+    assert guide["SSO"] == "Single Sign-On"

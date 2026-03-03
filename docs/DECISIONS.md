@@ -123,3 +123,9 @@ Why: the abbreviations are common in operations programs, but interview viewers 
 Decision: add `PMIS` to the system landscape as an optional Project Controls extension and include it in ORR tracker example labels, without making it a mandatory source for the demo.
 
 Why: PMIS is useful when the conversation needs stronger project-controls and handover traceability, but the control tower still runs coherently with CMDB, ORR, EDMS, ITSM, OT, and ticketing sources alone.
+
+## D-021 - Complete optional extension coverage for workforce, project, arrival, command, and identity layers
+
+Decision: add `WFM / Rostering`, `CDE / BIM / Handover`, `Parking / Traffic / Mobility`, `CAD / Dispatch / Radio`, and `IAM / SSO` as optional system-landscape categories with example labels, trace fields, ID rules, and acronym expansions.
+
+Why: these layers materially strengthen the interview narrative for operational readiness, handover quality, arrival management, security command, and access governance without forcing new datasets or pages into the core demo path.

@@ -115,6 +115,36 @@ PMIS_LABELS: Final[tuple[str, ...]] = (
     "Procore (example)",
 )
 
+WFM_LABELS: Final[tuple[str, ...]] = (
+    "UKG/Kronos Workforce Central (example)",
+    "Oracle Workforce Management (example)",
+    "SAP SuccessFactors Time Tracking (example)",
+)
+
+CDE_BIM_LABELS: Final[tuple[str, ...]] = (
+    "Autodesk Construction Cloud / BIM 360 (example)",
+    "Bentley ProjectWise (example)",
+    "Procore Documents / Handover (example)",
+)
+
+PARKING_MOBILITY_LABELS: Final[tuple[str, ...]] = (
+    "Parking Guidance Platform (example)",
+    "Traffic Operations Platform (example)",
+    "Mobility Aggregator (example)",
+)
+
+CAD_DISPATCH_RADIO_LABELS: Final[tuple[str, ...]] = (
+    "Motorola Solutions CommandCentral (example)",
+    "Hexagon CAD (example)",
+    "Radio Dispatch Platform (example)",
+)
+
+IAM_SSO_LABELS: Final[tuple[str, ...]] = (
+    "Microsoft Entra ID (example)",
+    "Okta (example)",
+    "Ping Identity (example)",
+)
+
 ORR_TRACKER_LABELS: Final[tuple[str, ...]] = (
     "ORR Tracker / SharePoint (example)",
     "ORR Tracker / Project Controls (example)",
@@ -127,16 +157,22 @@ ACRONYM_GLOSSARY: Final[dict[str, str]] = {
     "CMMS": "Computerized Maintenance Management System",
     "CRM": "Customer Relationship Management",
     "CCTV": "Closed-Circuit Television",
+    "CDE": "Common Data Environment",
     "EAM": "Enterprise Asset Management",
     "EDMS": "Electronic Document Management System",
     "ERP": "Enterprise Resource Planning",
+    "BIM": "Building Information Modeling",
+    "CAD": "Computer-Aided Dispatch",
+    "IAM": "Identity and Access Management",
     "ITSM": "IT Service Management",
     "NAC": "Network Access Control",
     "OT": "Operational Technology",
     "PMIS": "Project Management Information System",
     "POS": "Point of Sale",
     "SIEM": "Security Information and Event Management",
+    "SSO": "Single Sign-On",
     "VMS": "Video Management System",
+    "WFM": "Workforce Management",
 }
 
 LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
@@ -233,6 +269,42 @@ LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
         optional=True,
     ),
     LandscapeCategory(
+        slug="wfm_rostering",
+        family="Enterprise / Corporate",
+        badge_label="WFM",
+        badge_tooltip="Workforce Management and rostering",
+        category="Workforce Management / Rostering",
+        examples=WFM_LABELS,
+        contributions=("Shift coverage", "Role readiness", "Training roster assurance"),
+        trace_fields=("source_system", "owner_team", "service_id"),
+        id_rule="SHIFT-000123 or ROSTER-OPS-01",
+        optional=True,
+    ),
+    LandscapeCategory(
+        slug="cde_bim_handover",
+        family="Enterprise / Corporate",
+        badge_label="CDE / BIM",
+        badge_tooltip="Common Data Environment / Building Information Modeling / Handover",
+        category="CDE / BIM / Handover",
+        examples=CDE_BIM_LABELS,
+        contributions=("As-built packages", "Handover completeness", "Model and document traceability"),
+        trace_fields=("source_system", "doc_ref", "service_id"),
+        id_rule="HB-000123 or BIM-MDL-001",
+        optional=True,
+    ),
+    LandscapeCategory(
+        slug="iam_sso",
+        family="Enterprise / Corporate",
+        badge_label="IAM / SSO",
+        badge_tooltip="Identity and Access Management / Single Sign-On",
+        category="IAM / SSO",
+        examples=IAM_SSO_LABELS,
+        contributions=("Operator access readiness", "Role and privilege assurance", "Authentication traceability"),
+        trace_fields=("source_system", "owner_team", "service_id"),
+        id_rule="ROLE-SEC-01 or APP-ACCESS-001",
+        optional=True,
+    ),
+    LandscapeCategory(
         slug="ot_events_feed",
         family="Venue / OT and Visitor Systems",
         badge_label="OT Events",
@@ -312,6 +384,30 @@ LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
         contributions=("Connectivity health", "Wi-Fi readiness", "Dependency visibility"),
         trace_fields=("source_system", "dashboard_ref", "assigned_group"),
         id_rule="DASH-00012",
+        optional=True,
+    ),
+    LandscapeCategory(
+        slug="parking_traffic_mobility",
+        family="Venue / OT and Visitor Systems",
+        badge_label="Parking / Mobility",
+        badge_tooltip="Parking, traffic, and mobility operations",
+        category="Parking / Traffic / Mobility",
+        examples=PARKING_MOBILITY_LABELS,
+        contributions=("Arrival flow", "Occupancy pressure", "Ingress and egress coordination"),
+        trace_fields=("source_system", "dashboard_ref", "venue_area"),
+        id_rule="PARK-AREA-01 or DASH-00077",
+        optional=True,
+    ),
+    LandscapeCategory(
+        slug="cad_dispatch_radio",
+        family="Venue / OT and Visitor Systems",
+        badge_label="CAD / Radio",
+        badge_tooltip="Computer-Aided Dispatch, dispatch, and radio operations",
+        category="CAD / Dispatch / Radio",
+        examples=CAD_DISPATCH_RADIO_LABELS,
+        contributions=("Dispatch events", "Field response coordination", "Radio resilience"),
+        trace_fields=("source_system", "source_id", "assigned_group"),
+        id_rule="CAD-000123 or TG-OPS-01",
         optional=True,
     ),
     LandscapeCategory(
