@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import plotly.graph_objects as go
 import streamlit as st
+import json
 
 # ── Professional Control Tower Palette ────────────────────────────────────────
 # Deep navy primary, vivid teal accent, clean grays, status colors with depth
@@ -256,18 +257,18 @@ def apply_global_styles() -> None:
           [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
           [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] li {
             color: #ffffff !important;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
             line-height: 1.5;
           }
           [data-testid="stSidebar"] h1,
           [data-testid="stSidebar"] h2,
           [data-testid="stSidebar"] h3 {
             color: #ffffff !important;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
           }
           [data-testid="stSidebar"] label {
             color: #ffffff !important;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
           }
 
           /* Expanders */
@@ -375,3 +376,45 @@ def style_plotly(fig: go.Figure, *, height: int = 380) -> go.Figure:
         tickfont=dict(size=10, color=BRAND["muted_light"]),
     )
     return fig
+
+
+def render_recommendations(recommendations: dict[str, Any]) -> None:
+    """Render recommendations with improved design and formatting."""
+    st.markdown("""
+    <style>
+      .recommendation-section {
+        margin-bottom: 2rem;
+        padding: 1rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        background-color: #f9fafb;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+      .recommendation-title {
+        font-size: 1.25rem;
+        font-weight: bold;
+        color: #1f2937;
+        margin-bottom: 0.5rem;
+      }
+      .recommendation-content {
+        font-size: 1rem;
+        color: #4b5563;
+        line-height: 1.5;
+      }
+    </style>
+    """, unsafe_allow_html=True)
+
+    for section, content in recommendations.items():
+        st.markdown(f"<div class='recommendation-section'>", unsafe_allow_html=True)
+        st.markdown(f"<div class='recommendation-title'>{section.replace('_', ' ').title()}</div>", unsafe_allow_html=True)
+        if isinstance(content, list):
+            for item in content:
+                if isinstance(item, dict):
+                    st.markdown(f"<div class='recommendation-content'>{json.dumps(item, indent=2)}</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<div class='recommendation-content'>- {item}</div>", unsafe_allow_html=True)
+        elif isinstance(content, str):
+            st.markdown(f"<div class='recommendation-content'>{content}</div>", unsafe_allow_html=True)
+        elif isinstance(content, (int, float)):
+            st.markdown(f"<div class='recommendation-content'>{content}</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
