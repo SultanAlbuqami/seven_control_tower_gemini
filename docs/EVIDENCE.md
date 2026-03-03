@@ -199,3 +199,56 @@ Result:
 - Python matrix remains `3.11` and `3.12`
 - `pip check` is included before pytest
 - No secrets are required for CI
+
+## Phase 8 - Feature branch commits
+
+### Product changes commit
+
+Command:
+
+```powershell
+git add app.py .streamlit/config.toml pages/0_Overview.py pages/1_Readiness.py pages/1_Readiness_Heatmap.py pages/2_Evidence_Pack.py pages/3_Incidents.py pages/4_Vendor_Scorecards.py pages/5_Recommendations.py pages/6_OT_Events.py pages/7_Ticketing_KPIs.py pages/8_System_Landscape.py src/ai/groq_recommender.py src/data.py src/domain/constants.py src/metrics.py src/recommendations/__init__.py src/recommendations/groq_adapter.py src/recommendations/heuristic.py src/recommendations/schema.py src/recommendations/service.py src/recommendations/snapshot.py src/seed.py src/system_landscape.py src/ui.py tests/test_heuristic.py tests/test_recommendations_integration.py tests/test_schema.py tests/test_app_smoke.py
+git commit -m "feat(control-tower): upgrade shell recommendations and operations views"
+```
+
+Result:
+
+- Commit created: `911a956`
+- Commit title: `feat(control-tower): upgrade shell recommendations and operations views`
+
+### Quality and packaging commit
+
+Command:
+
+```powershell
+git add .env.example .github/workflows/ci.yml .gitignore .streamlit/secrets.toml.example README.md docs/DECISIONS.md docs/EVIDENCE.md scripts/package_zip.ps1 scripts/package_zip.sh
+git commit -m "chore(quality): harden packaging docs and secret handling"
+```
+
+Result:
+
+- Commit created: `7db2b28`
+- Commit title: `chore(quality): harden packaging docs and secret handling`
+
+## Phase 9 - Merge and push
+
+Command:
+
+```powershell
+git fetch origin
+git checkout main
+git merge --no-ff feat/visual-identity-dual-llm-ot-ticketing
+git push -u origin main
+git status --short --branch
+git log --oneline --decorate -6
+git rev-parse --short HEAD
+git rev-parse --short origin/main
+```
+
+Result:
+
+- Merge commit created on `main`: `9ede7f6`
+- Push succeeded: `14e074f..9ede7f6  main -> main`
+- `HEAD` = `9ede7f6`
+- `origin/main` = `9ede7f6`
+- `git status --short --branch` returned only `## main...origin/main`, which confirms no local file modifications
