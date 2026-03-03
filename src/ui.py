@@ -6,6 +6,7 @@ from typing import Any, Iterable
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 
 from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
 
@@ -70,6 +71,7 @@ def configure_page(page_name: str, *, icon: str = ":material/dashboard:") -> Non
     )
     apply_global_styles()
     render_sidebar(page_name)
+    inject_client_behaviors()
 
 
 def apply_global_styles() -> None:
@@ -102,7 +104,7 @@ def apply_global_styles() -> None:
           }}
 
           .block-container {{
-            padding-top: 1.1rem;
+            padding-top: 0.85rem;
             padding-bottom: 2rem;
             max-width: 1480px;
           }}
@@ -174,13 +176,13 @@ def apply_global_styles() -> None:
           }}
 
           .hero {{
-            padding: 1.35rem 1.5rem;
+            padding: 1.1rem 1.35rem;
             border-radius: 24px;
             border: 1px solid rgba(140, 90, 55, 0.18);
             background:
               linear-gradient(120deg, rgba(255,255,255,0.98) 0%, rgba(248,241,231,0.96) 48%, rgba(231,214,196,0.72) 100%);
             box-shadow: 0 16px 44px rgba(30, 37, 47, 0.08);
-            margin-bottom: 1rem;
+            margin-bottom: 0.8rem;
           }}
 
           .hero .label {{
@@ -202,21 +204,22 @@ def apply_global_styles() -> None:
           .hero .purpose {{
             color: var(--ink-soft);
             font-size: 0.98rem;
-            margin-top: 0.45rem;
+            margin-top: 0.35rem;
             max-width: 68rem;
           }}
 
           .hero .meta {{
-            margin-top: 0.85rem;
+            margin-top: 0.7rem;
             color: var(--ink-soft);
-            font-size: 0.84rem;
+            font-size: 0.82rem;
+            max-width: 68rem;
           }}
 
           .badge-row {{
             display: flex;
             flex-wrap: wrap;
             gap: 0.55rem;
-            margin-top: 0.9rem;
+            margin: 0.35rem 0 0.9rem 0;
           }}
 
           .badge {{
@@ -300,8 +303,39 @@ def apply_global_styles() -> None:
             border-radius: 999px;
           }}
 
+          [data-testid="stSidebarCollapseButton"] button,
+          [data-testid="collapsedControl"] button {{
+            background: rgba(255, 255, 255, 0.08) !important;
+            border-radius: 999px !important;
+          }}
+
+          [data-testid="stSidebarNav"] a {{
+            min-height: 2rem;
+          }}
+
           code, pre {{
             font-family: "IBM Plex Mono", monospace !important;
+          }}
+
+          @media (max-width: 960px) {{
+            .block-container {{
+              padding-top: 0.4rem;
+              padding-left: 0.9rem;
+              padding-right: 0.9rem;
+            }}
+
+            .hero {{
+              padding: 0.95rem 1rem;
+              border-radius: 18px;
+            }}
+
+            .hero .page {{
+              font-size: 1.65rem;
+            }}
+
+            .section-header {{
+              margin-bottom: 0.6rem;
+            }}
           }}
         </style>
         """,
@@ -327,7 +361,6 @@ def render_page_header(page_name: str, description: str) -> None:
           <div class="label">{APP_TITLE}</div>
           <div class="page">{page_name}</div>
           <div class="purpose">{description}</div>
-          <div class="meta">{APP_PURPOSE}</div>
           <div class="meta">{DEMO_MODE_NOTE} {DISCLAIMER}</div>
         </section>
         """,
@@ -371,13 +404,15 @@ def render_status_badges(items: Iterable[dict[str, str] | tuple[str, str]]) -> N
         if isinstance(item, dict):
             label = str(item.get("label", "")).strip()
             status = str(item.get("status", "OK")).strip().upper()
+            value = str(item.get("value", status)).strip()
         else:
             label, status = str(item[0]).strip(), str(item[1]).strip().upper()
+            value = status
         color = STATUS_COLORS.get(status, THEME["teal"])
         chunks.append(
             "<span class='status-pill'>"
             f"<span class='status-dot' style='background:{color}'></span>"
-            f"<span>{label}: {status}</span>"
+            f"<span>{label}: {value}</span>"
             "</span>"
         )
     if chunks:
@@ -416,22 +451,106 @@ def render_download_buttons(items: list[dict[str, Any]]) -> None:
             )
 
 
-def render_lineage_panel(df: pd.DataFrame, *, title: str, trace_fields: list[str]) -> None:
-    render_section_header(title, "Source labels and trace references used on this page.")
-    if df.empty:
-        st.info("No records available for lineage.")
-        return
-    columns = [column for column in ["source_system", *trace_fields] if column in df.columns]
-    lineage = df[columns].drop_duplicates().head(8).copy()
-    st.dataframe(format_table(lineage), use_container_width=True, hide_index=True)
-    traces: list[str] = []
-    for column in trace_fields:
-        if column in df.columns:
-            values = [str(value) for value in df[column].dropna().astype(str).head(5).tolist() if str(value).strip()]
-            if values:
-                traces.append(f"{column}: {', '.join(values)}")
-    if traces:
-        st.code("\n".join(traces), language="text")
+def render_lineage_panel(
+    df: pd.DataFrame,
+    *,
+    title: str,
+    trace_fields: list[str],
+    expanded: bool = False,
+) -> None:
+    with st.expander(title, expanded=expanded):
+        st.caption("Source labels and trace references used on this page.")
+        if df.empty:
+            st.info("No records available for lineage.")
+            return
+        columns = [column for column in ["source_system", *trace_fields] if column in df.columns]
+        lineage = df[columns].drop_duplicates().head(8).copy()
+        st.dataframe(format_table(lineage), use_container_width=True, hide_index=True)
+        traces: list[str] = []
+        for column in trace_fields:
+            if column in df.columns:
+                values = [str(value) for value in df[column].dropna().astype(str).head(5).tolist() if str(value).strip()]
+                if values:
+                    traces.append(f"{column}: {', '.join(values)}")
+        if traces:
+            st.code("\n".join(traces), language="text")
+
+
+def inject_client_behaviors() -> None:
+    components.html(
+        """
+        <script>
+        const rootWin = window.parent;
+
+        const patchFetch = () => {
+          try {
+            if (rootWin.__alhamraFetchPatched) {
+              return;
+            }
+            const originalFetch = rootWin.fetch.bind(rootWin);
+            rootWin.fetch = (input, init) => {
+              try {
+                const rawUrl =
+                  typeof input === "string"
+                    ? input
+                    : input instanceof rootWin.Request
+                      ? input.url
+                      : String(input);
+                const url = new URL(rawUrl, rootWin.location.origin);
+                url.pathname = url.pathname.replace(
+                  /\\/~\\/\\+\\/[^/]+\\/_stcore\\//,
+                  "/_stcore/"
+                );
+                if (typeof input === "string") {
+                  return originalFetch(url.toString(), init);
+                }
+                if (input instanceof rootWin.Request && url.toString() !== input.url) {
+                  return originalFetch(new rootWin.Request(url.toString(), input), init);
+                }
+              } catch (err) {
+              }
+              return originalFetch(input, init);
+            };
+            rootWin.__alhamraFetchPatched = true;
+          } catch (err) {
+          }
+        };
+
+        const collapseMobileSidebar = () => {
+          try {
+            if (rootWin.innerWidth > 960) {
+              return;
+            }
+            const storageKey = "alhamra-mobile-sidebar-collapsed";
+            if (rootWin.sessionStorage.getItem(storageKey)) {
+              return;
+            }
+            const parentDoc = rootWin.document;
+            const sidebar = parentDoc.querySelector('[data-testid="stSidebar"][aria-expanded="true"]');
+            const collapseButton = parentDoc.querySelector(
+              '[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] button'
+            );
+            if (sidebar && collapseButton) {
+              collapseButton.click();
+              rootWin.sessionStorage.setItem(storageKey, "1");
+            }
+          } catch (err) {
+          }
+        };
+
+        const init = () => {
+          patchFetch();
+          collapseMobileSidebar();
+        };
+
+        init();
+        rootWin.setTimeout(init, 250);
+        rootWin.setTimeout(init, 1200);
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
 
 
 def format_timestamp(value: Any) -> str:

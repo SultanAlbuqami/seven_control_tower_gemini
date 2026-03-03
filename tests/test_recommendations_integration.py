@@ -94,7 +94,7 @@ def test_no_key_returns_heuristic() -> None:
 
     assert is_valid(result)
     assert warning is not None
-    assert source == "heuristic"
+    assert source == "fallback_no_key"
 
 
 def test_valid_openai_response_returned() -> None:
@@ -113,7 +113,7 @@ def test_invalid_openai_json_triggers_fallback() -> None:
 
     assert is_valid(result)
     assert warning is not None
-    assert source == "heuristic"
+    assert source == "fallback_error"
 
 
 def test_schema_invalid_openai_json_can_be_repaired() -> None:
@@ -145,7 +145,7 @@ def test_openai_api_exception_triggers_fallback() -> None:
 
     assert is_valid(result)
     assert warning is not None
-    assert source == "heuristic"
+    assert source == "fallback_error"
 
 
 def test_service_never_raises_on_bad_key() -> None:
@@ -156,7 +156,7 @@ def test_service_never_raises_on_bad_key() -> None:
         try:
             result, warning, source = rec_service.recommend(_minimal_snapshot(), api_key="garbage-key")
             assert is_valid(result)
-            assert source == "heuristic"
+            assert source == "fallback_error"
         except Exception as exc:  # pragma: no cover
             pytest.fail(f"service.recommend raised unexpectedly: {exc}")
 

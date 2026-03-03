@@ -4,9 +4,26 @@ headless = true
 [browser]
 gatherUsageStats = false
 
+[client]
+toolbarMode = "minimal"
+showSidebarNavigation = true
+
 [theme]
+base = "light"
 primaryColor = "#8C5A37"
 backgroundColor = "#F5F1EA"
 secondaryBackgroundColor = "#F0E8DB"
 textColor = "#1E252F"
 font = "sans serif"
+borderColor = "#D9CDBB"
+dataframeHeaderBackgroundColor = "#E7D6C4"
+codeBackgroundColor = "#F0E8DB"
+
+[theme.sidebar]
+primaryColor = "#C98D64"
+backgroundColor = "#1E252F"
+secondaryBackgroundColor = "#2A3340"
+textColor = "#F6F1E8"
+borderColor = "#3A4656"
+dataframeHeaderBackgroundColor = "#2A3340"
+codeBackgroundColor = "#24303B"

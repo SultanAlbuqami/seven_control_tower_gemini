@@ -9,9 +9,14 @@ from src.recommendations import openai_adapter
 
 logger = logging.getLogger(__name__)
 
-OFFLINE_WARNING = (
-    "Final authoritative recommendations are running in deterministic heuristic mode. "
-    "No OpenAI API key was available or the final JSON call failed."
+NO_KEY_WARNING = (
+    "Final authoritative recommendations are running in deterministic heuristic mode because "
+    "no OpenAI API key is available."
+)
+
+FINAL_CALL_FAILED_WARNING = (
+    "Final authoritative recommendations are staying on the deterministic heuristic baseline "
+    "because the OpenAI final JSON call failed."
 )
 
 
@@ -30,7 +35,7 @@ def recommend(
     resolved_key = api_key or _get_api_key()
     if not resolved_key:
         logger.info("No API key available. Using heuristic recommendations.")
-        return heuristic.recommend(snapshot), OFFLINE_WARNING, "heuristic"
+        return heuristic.recommend(snapshot), NO_KEY_WARNING, "fallback_no_key"
 
     try:
         raw_text = openai_adapter.request_final_json(
@@ -47,7 +52,7 @@ def recommend(
     except Exception as exc:  # pragma: no cover - exercised in integration tests
         logger.warning("OpenAI final request failed: %s", exc)
 
-    return heuristic.recommend(snapshot), OFFLINE_WARNING, "heuristic"
+    return heuristic.recommend(snapshot), FINAL_CALL_FAILED_WARNING, "fallback_error"
 
 
 def stream_draft_preview(

@@ -1,13 +1,21 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import time
 from typing import Any
 
 import streamlit as st
 
 from src.data import ensure_data_and_load
-from src.recommendations.service import recommend, stream_draft_preview
+from src.recommendations import heuristic
+from src.recommendations.service import (
+    FINAL_CALL_FAILED_WARNING,
+    NO_KEY_WARNING,
+    recommend,
+    stream_draft_preview,
+)
 from src.recommendations.snapshot import build_snapshot
 from src.ui import (
     configure_page,
@@ -54,10 +62,62 @@ def _render_signal_list(items: list[dict[str, Any]], primary_key: str) -> None:
             st.code(", ".join(str(value) for value in trace_refs), language="text")
 
 
+def _snapshot_signature(snapshot: dict[str, Any]) -> str:
+    serialized = json.dumps(snapshot, sort_keys=True, default=str)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()[:12]
+
+
+def _live_signature(snapshot_sig: str, preview_model: str, final_model: str, api_key: str | None) -> str:
+    key_sig = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:12] if api_key else "no-key"
+    return f"{snapshot_sig}|{preview_model}|{final_model}|{key_sig}"
+
+
+def _engine_tone(engine_state: str) -> str:
+    return {
+        "Live LLM": "OK",
+        "Fallback": "WARN",
+        "Pending": "WARN",
+        "Error": "CRIT",
+    }.get(engine_state, "WARN")
+
+
+def _apply_heuristic_baseline(snapshot: dict[str, Any], *, api_key_available: bool) -> None:
+    st.session_state["recommendation_payload"] = heuristic.recommend(snapshot)
+    st.session_state["recommendation_source"] = "heuristic_baseline" if api_key_available else "fallback_no_key"
+    st.session_state["recommendation_warning"] = None if api_key_available else NO_KEY_WARNING
+    st.session_state["recommendation_engine_state"] = "Pending" if api_key_available else "Fallback"
+    st.session_state["recommendation_live_refresh_state"] = "queued" if api_key_available else "idle"
+    st.session_state["recommendation_requested_at"] = time.time() if api_key_available else None
+    st.session_state["draft_preview"] = ""
+    st.session_state["draft_notice"] = None
+
+
+def _queue_live_refresh() -> None:
+    st.session_state["recommendation_engine_state"] = "Pending"
+    st.session_state["recommendation_live_refresh_state"] = "queued"
+    st.session_state["recommendation_requested_at"] = time.time()
+    st.session_state["draft_preview"] = ""
+    st.session_state["draft_notice"] = None
+
+
+def _render_engine_banner(engine_state: str, warning: str | None) -> None:
+    if engine_state == "Pending":
+        st.info(
+            "The page is already showing the instant deterministic authoritative baseline. "
+            "A live OpenAI refresh is queued in the background."
+        )
+    elif engine_state == "Live LLM":
+        st.success("The final authoritative panels and exports are currently backed by a live OpenAI result.")
+    elif engine_state == "Error":
+        st.error(warning or "The live recommendation pipeline failed before a new authoritative result could be applied.")
+    elif warning:
+        st.warning(warning)
+
+
 configure_page("Recommendations")
 render_page_header(
     "Recommendations",
-    "Generate a Draft preview from a fast OpenAI model and then a Final authoritative recommendation set in strict JSON. The final JSON is the only structured output used by the page and exports.",
+    "Show the authoritative recommendation set immediately from the deterministic baseline, then refresh it from OpenAI when a key is available.",
 )
 
 try:
@@ -67,7 +127,7 @@ except Exception as exc:
     st.stop()
 
 snapshot = build_snapshot(data)
-api_key = _resolve_api_key()
+snapshot_sig = _snapshot_signature(snapshot)
 
 with st.sidebar:
     st.markdown("#### Recommendation settings")
@@ -89,11 +149,34 @@ with st.sidebar:
         index=0,
     )
 
+api_key = _resolve_api_key()
+current_live_sig = _live_signature(snapshot_sig, preview_model, final_model, api_key)
+
+if "recommendation_payload" not in st.session_state:
+    _apply_heuristic_baseline(snapshot, api_key_available=bool(api_key))
+    st.session_state["recommendation_snapshot_sig"] = snapshot_sig
+    st.session_state["recommendation_live_sig"] = current_live_sig
+elif st.session_state.get("recommendation_snapshot_sig") != snapshot_sig:
+    _apply_heuristic_baseline(snapshot, api_key_available=bool(api_key))
+    st.session_state["recommendation_snapshot_sig"] = snapshot_sig
+    st.session_state["recommendation_live_sig"] = current_live_sig
+elif st.session_state.get("recommendation_live_sig") != current_live_sig:
+    st.session_state["recommendation_live_sig"] = current_live_sig
+    if api_key:
+        _queue_live_refresh()
+    else:
+        _apply_heuristic_baseline(snapshot, api_key_available=False)
+
+payload = st.session_state["recommendation_payload"]
+engine_state = str(st.session_state.get("recommendation_engine_state", "Fallback"))
+
 render_status_badges(
     [
-        {"label": "Draft preview", "status": "OK" if api_key else "WARN"},
-        {"label": "Final JSON", "status": "OK" if api_key else "WARN"},
-        {"label": "Offline fallback", "status": "OK"},
+        {
+            "label": "Recommendation engine",
+            "value": engine_state,
+            "status": _engine_tone(engine_state),
+        }
     ]
 )
 render_kpi_cards(
@@ -125,23 +208,36 @@ render_kpi_cards(
     ]
 )
 
-if "recommendation_payload" not in st.session_state:
-    st.session_state["recommendation_payload"] = None
-    st.session_state["recommendation_source"] = None
-    st.session_state["recommendation_warning"] = None
-    st.session_state["draft_preview"] = ""
-    st.session_state["draft_notice"] = None
-
-run = st.button("Generate recommendations", type="primary")
-if run:
-    st.session_state["draft_preview"] = ""
-    st.session_state["draft_notice"] = None
-    preview_placeholder = st.empty()
-
+refresh_label = "Refresh live recommendations" if api_key else "Refresh heuristic recommendations"
+if st.button(refresh_label, type="primary"):
     if api_key:
-        preview_text = ""
-        try:
-            with st.spinner("Streaming Draft / Preview..."):
+        _queue_live_refresh()
+    else:
+        _apply_heuristic_baseline(snapshot, api_key_available=False)
+    st.rerun()
+
+
+@st.fragment(run_every=2)
+def _live_refresh_worker() -> None:
+    if not api_key:
+        return
+
+    if st.session_state.get("recommendation_live_refresh_state") != "queued":
+        return
+
+    requested_at = float(st.session_state.get("recommendation_requested_at") or 0.0)
+    if time.time() - requested_at < 1.0:
+        st.caption("Live OpenAI refresh is queued.")
+        return
+
+    st.session_state["recommendation_live_refresh_state"] = "running"
+
+    try:
+        with st.status("Live OpenAI refresh", expanded=True) as status:
+            status.write("Streaming Draft / Preview from the fast model.")
+            preview_text = ""
+            preview_placeholder = st.empty()
+            try:
                 for chunk in stream_draft_preview(
                     snapshot,
                     api_key=api_key,
@@ -149,43 +245,58 @@ if run:
                 ):
                     preview_text += chunk
                     preview_placeholder.markdown(f"#### Draft / Preview\n\n{preview_text}")
-            st.session_state["draft_preview"] = preview_text
-        except Exception as exc:
-            st.session_state["draft_notice"] = (
-                f"Draft / Preview was unavailable ({type(exc).__name__}). Proceeding directly to the final authoritative result."
-            )
-    else:
-        st.session_state["draft_notice"] = (
-            "No API key is available, so Draft / Preview streaming is skipped and the page will use deterministic heuristic logic."
+                if preview_text.strip():
+                    st.session_state["draft_preview"] = preview_text
+                    st.session_state["draft_notice"] = None
+            except Exception as exc:
+                st.session_state["draft_preview"] = ""
+                st.session_state["draft_notice"] = (
+                    f"Draft / Preview was unavailable ({type(exc).__name__}). The final authoritative refresh continued."
+                )
+
+            status.write("Validating the final authoritative JSON.")
+            payload, warning, source = recommend(snapshot, api_key=api_key, final_model=final_model)
+
+            st.session_state["recommendation_payload"] = payload
+            st.session_state["recommendation_warning"] = warning
+            st.session_state["recommendation_source"] = source
+            st.session_state["recommendation_live_refresh_state"] = "done"
+
+            if source == "openai_final":
+                st.session_state["recommendation_engine_state"] = "Live LLM"
+                status.update(label="Live OpenAI refresh complete", state="complete", expanded=False)
+            else:
+                st.session_state["recommendation_engine_state"] = "Fallback"
+                status.update(label="Live OpenAI refresh fell back to the deterministic baseline", state="error", expanded=True)
+    except Exception as exc:  # pragma: no cover - defensive UI safeguard
+        st.session_state["recommendation_engine_state"] = "Error"
+        st.session_state["recommendation_warning"] = (
+            f"Live OpenAI refresh failed before a new authoritative result could be applied ({type(exc).__name__}). "
+            f"The page is still showing the deterministic baseline. {FINAL_CALL_FAILED_WARNING}"
         )
+        st.session_state["recommendation_source"] = "fallback_error"
+        st.session_state["recommendation_live_refresh_state"] = "failed"
 
-    with st.spinner("Generating Final authoritative recommendations..."):
-        payload, warning, source = recommend(snapshot, api_key=api_key, final_model=final_model)
-    st.session_state["recommendation_payload"] = payload
-    st.session_state["recommendation_warning"] = warning
-    st.session_state["recommendation_source"] = source
+    st.rerun()
 
-if st.session_state["draft_preview"]:
-    render_section_header("Draft / Preview", "Fast, non-authoritative text streamed from the preview model.")
-    st.markdown(st.session_state["draft_preview"])
-if st.session_state["draft_notice"]:
-    st.info(st.session_state["draft_notice"])
+
+_live_refresh_worker()
 
 payload = st.session_state["recommendation_payload"]
-if payload is None:
-    st.info("Click Generate recommendations to produce the Draft preview and the Final authoritative recommendation set.")
-    st.stop()
+engine_state = str(st.session_state.get("recommendation_engine_state", "Fallback"))
+warning = st.session_state.get("recommendation_warning")
+_render_engine_banner(engine_state, warning)
 
-render_section_header("Final authoritative recommendations", "This structured JSON is the only output used for panels and export.")
-render_status_badges(
-    [
-        {"label": "Result source", "status": "OK" if st.session_state["recommendation_source"] == "openai_final" else "WARN"},
-        {"label": "Overall posture", "status": payload["summary"]["status"]},
-    ]
+if st.session_state.get("draft_preview"):
+    render_section_header("Draft / Preview", "Fast, non-authoritative text streamed from the preview model.")
+    st.markdown(st.session_state["draft_preview"])
+if st.session_state.get("draft_notice"):
+    st.info(st.session_state["draft_notice"])
+
+render_section_header(
+    "Final authoritative recommendations",
+    "This structured JSON is the only output used for panels and export.",
 )
-if st.session_state["recommendation_warning"]:
-    st.warning(st.session_state["recommendation_warning"])
-
 summary = payload["summary"]
 st.markdown(f"### {summary['headline']}")
 st.caption(
