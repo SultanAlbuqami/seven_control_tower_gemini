@@ -15,6 +15,7 @@ An interview-grade Streamlit demo for venue and destination operations readiness
 - OT Events
 - Ticketing KPIs
 - System Landscape
+- Operations Dependencies
 
 ## Key behaviors
 
@@ -127,6 +128,9 @@ Every dataset includes `source_system` plus realistic traceable IDs. Examples:
 - `kpis.csv`: `dashboard_ref`
 - `ot_events.csv`: `ot_event_id`, `device_id`, `linked_incident_id`
 - `ticketing_kpis.csv`: `linked_incident_id`, venue/time traces
+- `wfm_roster.csv`: `shift_id`, `roster_ref`
+- `parking_mobility.csv`: `arrival_ref`, `dashboard_ref`, `linked_incident_id`
+- `access_governance.csv`: `access_review_id`, `application_ref`
 
 Each page includes a Data lineage section that surfaces the example source labels and sample trace references used in the rendered view.
 
@@ -153,19 +157,21 @@ The canonical JSON sections are:
    Say: "This is the executive posture. The launch threshold is zero RED gates, zero open Sev-1/2 incidents, and a nearly complete evidence pack."
 2. Readiness heatmap
    Say: "This shows exactly which service and gate combinations still block launch, plus the named owner and dependency."
-3. Evidence pack
+3. Operations Dependencies
+   Say: "This view proves launch risk is cross-domain: readiness can still fail because of staffing gaps, arrival congestion, or access-governance exceptions."
+4. Evidence pack
    Say: "Here is the document chase list with traceable refs, approvers, and approval status."
-4. Incidents
+5. Incidents
    Say: "This is the live operational stability picture: MTTA, MTTR, severity mix, and SLA discipline."
-5. Vendor scorecards
+6. Vendor scorecards
    Say: "This view shows which partners are inside or outside contract and where penalty exposure starts."
-6. OT Events
+7. OT Events
    Say: "This is the facilities and security event picture with alarm severity, zones, acknowledgement discipline, and linked incidents."
-7. Ticketing KPIs
+8. Ticketing KPIs
    Say: "This is the guest-entry performance picture: scan success, QR latency, throughput, and fallback activation."
-8. Recommendations
+9. Recommendations
    Say: "The Draft preview is fast, but the Final authoritative JSON is the only structured output used by the page and exports."
-9. System Landscape
+10. System Landscape
    Say: "These are example system labels. The connectors can be swapped to match the real environment without changing the control tower contract."
 
 ## Tests and quality gates
@@ -230,6 +236,7 @@ scripts/
 - Renamed the demo shell to Al Hamra — Operations Readiness Control Tower
 - Added a fixed-timestamp deterministic seed so regenerated CSVs are stable across runs
 - Added the System Landscape page and expanded source-system example coverage
+- Added WFM roster, parking and mobility, and access-governance synthetic datasets plus the Operations Dependencies page
 - Standardized the app shell, data-lineage panels, executive status badges, and KPI card layout
 - Rebuilt recommendations around the new strict JSON schema with Draft preview plus Final authoritative output
 - Added Streamlit smoke tests for all pages and offline recommendation generation

@@ -20,6 +20,9 @@ DATASET_SPECS: Final[dict[str, tuple[str, ...]]] = {
     "kpis": ("ts",),
     "ot_events": ("event_time", "ack_time", "cleared_time"),
     "ticketing_kpis": ("ts",),
+    "wfm_roster": ("shift_start", "shift_end"),
+    "parking_mobility": ("ts",),
+    "access_governance": ("last_certification_at", "next_review_due"),
 }
 
 
@@ -33,6 +36,9 @@ class DataBundle:
     kpis: pd.DataFrame
     ot_events: pd.DataFrame
     ticketing_kpis: pd.DataFrame
+    wfm_roster: pd.DataFrame
+    parking_mobility: pd.DataFrame
+    access_governance: pd.DataFrame
 
 
 def _read_csv(name: str) -> pd.DataFrame:
@@ -56,6 +62,9 @@ def load_data() -> DataBundle:
         kpis=_read_csv("kpis"),
         ot_events=_read_csv("ot_events"),
         ticketing_kpis=_read_csv("ticketing_kpis"),
+        wfm_roster=_read_csv("wfm_roster"),
+        parking_mobility=_read_csv("parking_mobility"),
+        access_governance=_read_csv("access_governance"),
     )
 
 

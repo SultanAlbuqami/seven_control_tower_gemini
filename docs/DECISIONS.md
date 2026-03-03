@@ -129,3 +129,9 @@ Why: PMIS is useful when the conversation needs stronger project-controls and ha
 Decision: add `WFM / Rostering`, `CDE / BIM / Handover`, `Parking / Traffic / Mobility`, `CAD / Dispatch / Radio`, and `IAM / SSO` as optional system-landscape categories with example labels, trace fields, ID rules, and acronym expansions.
 
 Why: these layers materially strengthen the interview narrative for operational readiness, handover quality, arrival management, security command, and access governance without forcing new datasets or pages into the core demo path.
+
+## D-022 - Promote staffing, arrival, and access governance into first-class synthetic datasets
+
+Decision: add deterministic `wfm_roster.csv`, `parking_mobility.csv`, and `access_governance.csv` datasets, then expose them through a dedicated `Operations Dependencies` page and summary metrics.
+
+Why: workforce coverage, arrival pressure, and access governance are real launch dependencies; keeping them only in the system-landscape narrative would leave a visible gap in the control-tower demo.

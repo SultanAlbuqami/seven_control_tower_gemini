@@ -52,6 +52,7 @@ SEVERITY_COLORS = {
 GUIDE_STEPS = [
     "Overview: establish overall posture and Go/No-Go threshold.",
     "Readiness heatmap: isolate RED gates and ownership.",
+    "Operations Dependencies: tie staffing, arrival pressure, and access governance to launch risk.",
     "Evidence pack: chase missing approvals and document refs.",
     "Incidents: review MTTA, MTTR, and SLA discipline.",
     "OT Events: surface unacknowledged critical alarms.",

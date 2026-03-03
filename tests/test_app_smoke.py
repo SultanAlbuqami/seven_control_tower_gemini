@@ -41,6 +41,7 @@ def test_app_auto_seed_regenerates_missing_csvs() -> None:
         "pages/6_OT_Events.py",
         "pages/7_Ticketing_KPIs.py",
         "pages/8_System_Landscape.py",
+        "pages/9_Operations_Dependencies.py",
     ],
 )
 def test_pages_render_without_errors(relative_path: str) -> None:

@@ -346,3 +346,312 @@ def ticketing_kpi_summary(ticketing_kpis: pd.DataFrame) -> dict[str, Any]:
         "payment_dependency_windows": payment_dependency_windows,
         "worst_areas": worst_areas,
     }
+
+
+def wfm_roster_summary(wfm_roster: pd.DataFrame) -> dict[str, Any]:
+    if wfm_roster is None or wfm_roster.empty:
+        return {
+            "total_shifts": 0,
+            "critical_shift_gaps": 0,
+            "overall_fill_rate": None,
+            "undertrained_shifts": 0,
+            "backfill_required": 0,
+            "top_service_gaps": [],
+        }
+
+    df = wfm_roster.copy()
+    required = pd.to_numeric(df.get("required_headcount", pd.Series(dtype=float)), errors="coerce")
+    checked_in = pd.to_numeric(df.get("checked_in_headcount", pd.Series(dtype=float)), errors="coerce")
+    training = pd.to_numeric(df.get("training_compliance_rate", pd.Series(dtype=float)), errors="coerce")
+    critical = df.get("critical_role_flag", pd.Series(dtype=bool)).fillna(False).astype(bool)
+    backfill = df.get("backfill_required_flag", pd.Series(dtype=bool)).fillna(False).astype(bool)
+
+    critical_gap_mask = critical & (checked_in < required)
+    undertrained_mask = training < THRESHOLDS["wfm_training_warn"]
+    total_required = float(required.fillna(0).sum())
+    overall_fill_rate = float(checked_in.fillna(0).sum() / total_required) if total_required > 0 else None
+
+    top_service_gaps: list[dict[str, Any]] = []
+    if "service" in df.columns:
+        service_view = df.assign(
+            critical_gap=critical_gap_mask.astype(int),
+            undertrained=undertrained_mask.astype(int),
+        )
+        grouped = (
+            service_view.groupby("service", as_index=False)
+            .agg(
+                required_headcount=("required_headcount", "sum"),
+                checked_in_headcount=("checked_in_headcount", "sum"),
+                critical_shift_gaps=("critical_gap", "sum"),
+                undertrained_shifts=("undertrained", "sum"),
+            )
+        )
+        grouped["fill_rate"] = (
+            pd.to_numeric(grouped["checked_in_headcount"], errors="coerce")
+            / pd.to_numeric(grouped["required_headcount"], errors="coerce").replace(0, pd.NA)
+        ).fillna(0.0)
+        top_service_gaps = (
+            grouped.sort_values(["critical_shift_gaps", "fill_rate", "undertrained_shifts"], ascending=[False, True, False])
+            .head(8)
+            .to_dict(orient="records")
+        )
+
+    return {
+        "total_shifts": int(len(df)),
+        "critical_shift_gaps": int(critical_gap_mask.fillna(False).sum()),
+        "overall_fill_rate": overall_fill_rate,
+        "undertrained_shifts": int(undertrained_mask.fillna(False).sum()),
+        "backfill_required": int(backfill.sum()),
+        "top_service_gaps": top_service_gaps,
+    }
+
+
+def parking_mobility_summary(parking_mobility: pd.DataFrame) -> dict[str, Any]:
+    if parking_mobility is None or parking_mobility.empty:
+        return {
+            "congestion_windows": 0,
+            "max_occupancy_pct": None,
+            "max_queue_minutes": None,
+            "max_ingress_time_min_p95": None,
+            "staffing_dependency_windows": 0,
+            "incident_windows": 0,
+            "worst_areas": [],
+        }
+
+    df = parking_mobility.copy()
+    occupancy = pd.to_numeric(df.get("occupancy_pct", pd.Series(dtype=float)), errors="coerce")
+    queue = pd.to_numeric(df.get("queue_minutes", pd.Series(dtype=float)), errors="coerce")
+    ingress = pd.to_numeric(df.get("ingress_time_min_p95", pd.Series(dtype=float)), errors="coerce")
+    congestion_mask = (
+        (occupancy > THRESHOLDS["parking_occupancy_warn"])
+        | (queue > THRESHOLDS["parking_queue_warn_min"])
+        | (ingress > THRESHOLDS["parking_ingress_warn_min"])
+    )
+
+    worst_areas: list[dict[str, Any]] = []
+    if "venue_area" in df.columns:
+        area_view = df.assign(congestion=congestion_mask.fillna(False).astype(int))
+        worst_areas = (
+            area_view.groupby("venue_area", as_index=False)
+            .agg(
+                max_occupancy_pct=("occupancy_pct", "max"),
+                max_queue_minutes=("queue_minutes", "max"),
+                max_ingress_time_min_p95=("ingress_time_min_p95", "max"),
+                congestion_windows=("congestion", "sum"),
+            )
+            .sort_values(
+                ["congestion_windows", "max_queue_minutes", "max_occupancy_pct"],
+                ascending=[False, False, False],
+            )
+            .head(6)
+            .to_dict(orient="records")
+        )
+
+    return {
+        "congestion_windows": int(congestion_mask.fillna(False).sum()),
+        "max_occupancy_pct": float(occupancy.max()) if not occupancy.dropna().empty else None,
+        "max_queue_minutes": float(queue.max()) if not queue.dropna().empty else None,
+        "max_ingress_time_min_p95": float(ingress.max()) if not ingress.dropna().empty else None,
+        "staffing_dependency_windows": int(df.get("staffing_dependency_flag", pd.Series(dtype=bool)).fillna(False).sum()),
+        "incident_windows": int(df.get("incident_flag", pd.Series(dtype=bool)).fillna(False).sum()),
+        "worst_areas": worst_areas,
+    }
+
+
+def access_governance_summary(access_governance: pd.DataFrame) -> dict[str, Any]:
+    if access_governance is None or access_governance.empty:
+        return {
+            "pending_approvals_total": 0,
+            "pending_privileged_approvals": 0,
+            "stale_accounts_total": 0,
+            "low_mfa_roles": 0,
+            "overdue_certifications": 0,
+            "privileged_exceptions": 0,
+            "top_service_gaps": [],
+        }
+
+    df = access_governance.copy()
+    privileged = df.get("privileged_access_flag", pd.Series(dtype=bool)).fillna(False).astype(bool)
+    pending = pd.to_numeric(df.get("pending_approvals", pd.Series(dtype=float)), errors="coerce").fillna(0)
+    stale = pd.to_numeric(df.get("stale_accounts", pd.Series(dtype=float)), errors="coerce").fillna(0)
+    mfa = pd.to_numeric(df.get("mfa_coverage_rate", pd.Series(dtype=float)), errors="coerce")
+    next_review_due = df.get("next_review_due", pd.Series(dtype="datetime64[ns, UTC]"))
+    overdue = next_review_due.notna() & (next_review_due < pd.Timestamp.now(tz="UTC"))
+    privileged_exception_mask = privileged & (
+        (pending > 0)
+        | (stale > 0)
+        | (mfa < THRESHOLDS["iam_mfa_warn"])
+        | df.get("segregation_of_duties_flag", pd.Series(dtype=bool)).fillna(False).astype(bool)
+    )
+
+    top_service_gaps: list[dict[str, Any]] = []
+    if "service" in df.columns:
+        service_view = df.assign(
+            low_mfa=(mfa < THRESHOLDS["iam_mfa_warn"]).fillna(False).astype(int),
+            privileged_exception=privileged_exception_mask.fillna(False).astype(int),
+        )
+        top_service_gaps = (
+            service_view.groupby("service", as_index=False)
+            .agg(
+                pending_approvals=("pending_approvals", "sum"),
+                stale_accounts=("stale_accounts", "sum"),
+                low_mfa_roles=("low_mfa", "sum"),
+                privileged_exceptions=("privileged_exception", "sum"),
+            )
+            .sort_values(
+                ["privileged_exceptions", "pending_approvals", "stale_accounts"],
+                ascending=[False, False, False],
+            )
+            .head(8)
+            .to_dict(orient="records")
+        )
+
+    return {
+        "pending_approvals_total": int(pending.sum()),
+        "pending_privileged_approvals": int(pending[privileged].sum()),
+        "stale_accounts_total": int(stale.sum()),
+        "low_mfa_roles": int((mfa < THRESHOLDS["iam_mfa_warn"]).fillna(False).sum()),
+        "overdue_certifications": int(overdue.sum()),
+        "privileged_exceptions": int(privileged_exception_mask.fillna(False).sum()),
+        "top_service_gaps": top_service_gaps,
+    }
+
+
+def operations_dependency_matrix(
+    services: pd.DataFrame,
+    readiness: pd.DataFrame,
+    wfm_roster: pd.DataFrame,
+    parking_mobility: pd.DataFrame,
+    access_governance: pd.DataFrame,
+) -> pd.DataFrame:
+    if services is None or services.empty:
+        return pd.DataFrame()
+
+    base = services[
+        [column for column in ["service", "owner_team", "service_tier", "primary_system", "criticality"] if column in services.columns]
+    ].drop_duplicates("service").copy()
+
+    readiness_agg = readiness.groupby("service", as_index=False).agg(
+        red_gates=("status", lambda values: int((values == "RED").sum())),
+        amber_gates=("status", lambda values: int((values == "AMBER").sum())),
+        hold_flag=("go_no_go", lambda values: bool((values == "HOLD").any())),
+    )
+
+    wfm_view = wfm_roster.copy()
+    wfm_view["critical_gap"] = (
+        wfm_view.get("critical_role_flag", pd.Series(dtype=bool)).fillna(False).astype(bool)
+        & (pd.to_numeric(wfm_view.get("checked_in_headcount", pd.Series(dtype=float)), errors="coerce")
+           < pd.to_numeric(wfm_view.get("required_headcount", pd.Series(dtype=float)), errors="coerce"))
+    ).astype(int)
+    wfm_view["low_training"] = (
+        pd.to_numeric(wfm_view.get("training_compliance_rate", pd.Series(dtype=float)), errors="coerce")
+        < THRESHOLDS["wfm_training_warn"]
+    ).fillna(False).astype(int)
+    wfm_agg = wfm_view.groupby("service", as_index=False).agg(
+        required_headcount=("required_headcount", "sum"),
+        checked_in_headcount=("checked_in_headcount", "sum"),
+        critical_shift_gaps=("critical_gap", "sum"),
+        low_training_shifts=("low_training", "sum"),
+    )
+    wfm_agg["staffing_fill_rate"] = (
+        pd.to_numeric(wfm_agg["checked_in_headcount"], errors="coerce")
+        / pd.to_numeric(wfm_agg["required_headcount"], errors="coerce").replace(0, pd.NA)
+    ).fillna(0.0)
+
+    access_view = access_governance.copy()
+    access_view["low_mfa"] = (
+        pd.to_numeric(access_view.get("mfa_coverage_rate", pd.Series(dtype=float)), errors="coerce")
+        < THRESHOLDS["iam_mfa_warn"]
+    ).fillna(False).astype(int)
+    access_view["privileged_exception"] = (
+        access_view.get("privileged_access_flag", pd.Series(dtype=bool)).fillna(False).astype(bool)
+        & (
+            (pd.to_numeric(access_view.get("pending_approvals", pd.Series(dtype=float)), errors="coerce").fillna(0) > 0)
+            | (pd.to_numeric(access_view.get("stale_accounts", pd.Series(dtype=float)), errors="coerce").fillna(0) > 0)
+            | (pd.to_numeric(access_view.get("mfa_coverage_rate", pd.Series(dtype=float)), errors="coerce") < THRESHOLDS["iam_mfa_warn"])
+            | access_view.get("segregation_of_duties_flag", pd.Series(dtype=bool)).fillna(False).astype(bool)
+        )
+    ).fillna(False).astype(int)
+    access_agg = access_view.groupby("service", as_index=False).agg(
+        pending_access_approvals=("pending_approvals", "sum"),
+        stale_accounts=("stale_accounts", "sum"),
+        low_mfa_roles=("low_mfa", "sum"),
+        privileged_exceptions=("privileged_exception", "sum"),
+    )
+
+    matrix = base.merge(readiness_agg, on="service", how="left").merge(wfm_agg, on="service", how="left").merge(access_agg, on="service", how="left")
+    fill_defaults = {
+        "red_gates": 0,
+        "amber_gates": 0,
+        "hold_flag": False,
+        "required_headcount": 0,
+        "checked_in_headcount": 0,
+        "critical_shift_gaps": 0,
+        "low_training_shifts": 0,
+        "staffing_fill_rate": 1.0,
+        "pending_access_approvals": 0,
+        "stale_accounts": 0,
+        "low_mfa_roles": 0,
+        "privileged_exceptions": 0,
+    }
+    for column, default in fill_defaults.items():
+        if column in matrix.columns:
+            matrix[column] = matrix[column].fillna(default)
+
+    parking = parking_mobility_summary(parking_mobility)
+    arrival_hotspot = parking["worst_areas"][0]["venue_area"] if parking["worst_areas"] else "-"
+    arrival_status = "CRIT"
+    if (
+        parking["max_occupancy_pct"] is not None
+        and parking["max_occupancy_pct"] < THRESHOLDS["parking_occupancy_warn"]
+        and (parking["max_queue_minutes"] is None or parking["max_queue_minutes"] < THRESHOLDS["parking_queue_warn_min"])
+    ):
+        arrival_status = "OK"
+    elif (
+        (parking["max_occupancy_pct"] is not None and parking["max_occupancy_pct"] < THRESHOLDS["parking_occupancy_crit"])
+        and (parking["max_queue_minutes"] is None or parking["max_queue_minutes"] < THRESHOLDS["parking_queue_crit_min"])
+        and (parking["max_ingress_time_min_p95"] is None or parking["max_ingress_time_min_p95"] < THRESHOLDS["parking_ingress_crit_min"])
+    ):
+        arrival_status = "WARN"
+
+    arrival_exposed_systems = {"Ticketing", "Access Control", "POS", "Wi-Fi", "Signage", "Guest CRM"}
+    matrix["arrival_exposed"] = matrix.get("primary_system", pd.Series(dtype=str)).fillna("").isin(arrival_exposed_systems)
+    matrix["arrival_dependency_status"] = matrix["arrival_exposed"].map(lambda exposed: arrival_status if exposed else "OK")
+    matrix["arrival_hotspot"] = matrix["arrival_exposed"].map(lambda exposed: arrival_hotspot if exposed else "-")
+
+    arrival_score = matrix["arrival_dependency_status"].map({"OK": 0, "WARN": 1, "CRIT": 2}).fillna(0)
+    matrix["dependency_score"] = (
+        pd.to_numeric(matrix["red_gates"], errors="coerce").fillna(0) * 3
+        + pd.to_numeric(matrix["amber_gates"], errors="coerce").fillna(0)
+        + matrix["hold_flag"].astype(bool).astype(int) * 4
+        + pd.to_numeric(matrix["critical_shift_gaps"], errors="coerce").fillna(0) * 2
+        + (pd.to_numeric(matrix["staffing_fill_rate"], errors="coerce").fillna(1.0) < THRESHOLDS["wfm_fill_rate_warn"]).astype(int) * 2
+        + pd.to_numeric(matrix["pending_access_approvals"], errors="coerce").fillna(0).ge(THRESHOLDS["iam_pending_privileged_warn"]).astype(int) * 2
+        + pd.to_numeric(matrix["low_mfa_roles"], errors="coerce").fillna(0)
+        + pd.to_numeric(matrix["privileged_exceptions"], errors="coerce").fillna(0)
+        + arrival_score
+    )
+
+    matrix["overall_status"] = "OK"
+    crit_mask = (
+        matrix["hold_flag"].astype(bool)
+        | pd.to_numeric(matrix["red_gates"], errors="coerce").fillna(0).ge(2)
+        | pd.to_numeric(matrix["critical_shift_gaps"], errors="coerce").fillna(0).ge(2)
+        | pd.to_numeric(matrix["dependency_score"], errors="coerce").fillna(0).ge(8)
+        | (matrix["arrival_dependency_status"] == "CRIT")
+    )
+    warn_mask = (
+        ~crit_mask
+        & (
+            pd.to_numeric(matrix["amber_gates"], errors="coerce").fillna(0).gt(0)
+            | pd.to_numeric(matrix["critical_shift_gaps"], errors="coerce").fillna(0).gt(0)
+            | (pd.to_numeric(matrix["staffing_fill_rate"], errors="coerce").fillna(1.0) < 1.0)
+            | pd.to_numeric(matrix["pending_access_approvals"], errors="coerce").fillna(0).gt(0)
+            | pd.to_numeric(matrix["low_mfa_roles"], errors="coerce").fillna(0).gt(0)
+            | (matrix["arrival_dependency_status"] == "WARN")
+        )
+    )
+    matrix.loc[warn_mask, "overall_status"] = "WARN"
+    matrix.loc[crit_mask, "overall_status"] = "CRIT"
+
+    return matrix.sort_values(["dependency_score", "red_gates", "critical_shift_gaps", "service"], ascending=[False, False, False, True])

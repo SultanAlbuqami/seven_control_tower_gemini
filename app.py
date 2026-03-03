@@ -3,7 +3,17 @@ from __future__ import annotations
 import streamlit as st
 
 from src.data import ensure_data_and_load
-from src.metrics import evidence_summary, incident_summary, ot_event_summary, readiness_summary, ticketing_kpi_summary, vendor_summary
+from src.metrics import (
+    access_governance_summary,
+    evidence_summary,
+    incident_summary,
+    ot_event_summary,
+    parking_mobility_summary,
+    readiness_summary,
+    ticketing_kpi_summary,
+    vendor_summary,
+    wfm_roster_summary,
+)
 from src.seed import generate
 from src.ui import (
     configure_page,
@@ -31,6 +41,9 @@ incidents = incident_summary(data.incidents)
 vendors = vendor_summary(data.vendors)
 ot = ot_event_summary(data.ot_events)
 ticketing = ticketing_kpi_summary(data.ticketing_kpis)
+wfm = wfm_roster_summary(data.wfm_roster)
+parking = parking_mobility_summary(data.parking_mobility)
+access = access_governance_summary(data.access_governance)
 
 render_status_badges(
     [
@@ -79,11 +92,12 @@ with left:
             [
                 "1. Overview: establish the operating posture and threshold for launch.",
                 "2. Readiness heatmap: isolate blocked services and gate owners.",
-                "3. Evidence pack: call out missing approvals and trace refs.",
-                "4. Incidents: review MTTA, MTTR, and SLA discipline.",
-                "5. Vendor scorecards: show partner accountability and penalty risk.",
-                "6. OT Events and Ticketing KPIs: prove live operational signal coverage.",
-                "7. Recommendations: compare the Draft preview with the Final authoritative output.",
+                "3. Operations Dependencies: connect readiness with staffing coverage, arrival pressure, and access governance.",
+                "4. Evidence pack: call out missing approvals and trace refs.",
+                "5. Incidents: review MTTA, MTTR, and SLA discipline.",
+                "6. Vendor scorecards: show partner accountability and penalty risk.",
+                "7. OT Events and Ticketing KPIs: prove live operational signal coverage.",
+                "8. Recommendations: compare the Draft preview with the Final authoritative output.",
             ]
         )
     )
@@ -99,6 +113,9 @@ with right:
                 f"- Incident records: {len(data.incidents)}",
                 f"- OT event records: {len(data.ot_events)}",
                 f"- Ticketing KPI rows: {len(data.ticketing_kpis)}",
+                f"- WFM roster rows: {len(data.wfm_roster)}",
+                f"- Parking and mobility rows: {len(data.parking_mobility)}",
+                f"- Access governance rows: {len(data.access_governance)}",
                 f"- Vendor scorecards: {len(data.vendors)}",
             ]
         )
@@ -118,9 +135,12 @@ col1, col2, col3 = st.columns(3)
 with col1:
     st.metric("Unacknowledged Sev-1 OT alarms", ot["unacked_sev1"])
     st.metric("Ticketing anomaly windows", ticketing["anomaly_windows"])
+    st.metric("Critical shift gaps", wfm["critical_shift_gaps"])
 with col2:
     st.metric("Open OT events", ot["total_open"])
     st.metric("Ticketing min scan success", f"{ticketing['min_success_rate']:.1%}" if ticketing["min_success_rate"] is not None else "-")
+    st.metric("Arrival congestion windows", parking["congestion_windows"])
 with col3:
     st.metric("Incident MTTA", f"{incidents['mtta_min']:.0f} min" if incidents["mtta_min"] is not None else "-")
     st.metric("Incident MTTR", f"{incidents['mttr_min']:.0f} min" if incidents["mttr_min"] is not None else "-")
+    st.metric("Access exceptions", access["privileged_exceptions"])

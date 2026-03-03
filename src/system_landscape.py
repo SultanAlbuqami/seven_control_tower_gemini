@@ -458,6 +458,20 @@ THRESHOLDS: Final[dict[str, float | int]] = {
     "ticketing_throughput_collapse_ppm": 20,
     "ot_unacked_sev1_warn": 0,
     "ot_unacked_sev2_warn": 2,
+    "wfm_fill_rate_warn": 0.95,
+    "wfm_fill_rate_crit": 0.90,
+    "wfm_training_warn": 0.95,
+    "wfm_training_crit": 0.90,
+    "parking_occupancy_warn": 0.90,
+    "parking_occupancy_crit": 0.97,
+    "parking_queue_warn_min": 10,
+    "parking_queue_crit_min": 18,
+    "parking_ingress_warn_min": 12,
+    "parking_ingress_crit_min": 20,
+    "iam_mfa_warn": 0.95,
+    "iam_mfa_crit": 0.90,
+    "iam_pending_privileged_warn": 3,
+    "iam_pending_privileged_crit": 8,
 }
 
 
@@ -490,6 +504,22 @@ def make_service_id(number: int) -> str:
 
 def make_incident_id(number: int) -> str:
     return f"INC-{number:04d}"
+
+
+def make_shift_id(number: int) -> str:
+    return f"SHIFT-{number:06d}"
+
+
+def make_roster_ref(number: int) -> str:
+    return f"ROSTER-OPS-{number:05d}"
+
+
+def make_arrival_ref(number: int) -> str:
+    return f"ARR-{number:05d}"
+
+
+def make_access_review_id(number: int) -> str:
+    return f"ACC-REV-{number:05d}"
 
 
 def make_source_id(number: int, source_system: str, prefix: str = "INC") -> str:

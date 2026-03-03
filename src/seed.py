@@ -11,11 +11,16 @@ from src.domain.constants import GATES, KPI_DEFINITIONS
 from src.system_landscape import (
     BMS_VENDOR_LABELS,
     EDMS_LABELS,
+    IAM_SSO_LABELS,
     ITSM_CMDB_LABELS,
     OBSERVABILITY_LABELS,
     ORR_TRACKER_LABELS,
     OT_EVENT_FEED_LABELS,
+    PARKING_MOBILITY_LABELS,
     TICKETING_LABELS,
+    WFM_LABELS,
+    make_access_review_id,
+    make_arrival_ref,
     make_ci_id,
     make_dashboard_ref,
     make_device_id,
@@ -23,7 +28,9 @@ from src.system_landscape import (
     make_incident_id,
     make_ot_event_id,
     make_punch_list_id,
+    make_roster_ref,
     make_service_id,
+    make_shift_id,
     make_source_id,
 )
 
@@ -46,6 +53,9 @@ REQUIRED_FILES = (
     "kpis.csv",
     "ot_events.csv",
     "ticketing_kpis.csv",
+    "wfm_roster.csv",
+    "parking_mobility.csv",
+    "access_governance.csv",
 )
 
 
@@ -428,6 +438,227 @@ def _generate_ticketing_kpis(rng: Random, incidents: pd.DataFrame, now: pd.Times
     return pd.DataFrame(rows)
 
 
+def _generate_wfm_roster(
+    rng: Random,
+    services: pd.DataFrame,
+    readiness: pd.DataFrame,
+    now: pd.Timestamp,
+) -> pd.DataFrame:
+    role_map: dict[str, list[tuple[str, str, bool]]] = {
+        "Ticketing and Gate Validation": [("Gate Supervisor", "Main Gate", True), ("Queue Controller", "Zone-1", False)],
+        "Access Control and Entry Gates": [("Access Control Supervisor", "Staff Entry", True), ("Gate Controller Technician", "Main Gate", False)],
+        "POS and Payments": [("Retail Systems Analyst", "Zone-2", True), ("Field POS Support", "VIP Gate", False)],
+        "Venue Wi-Fi and NAC": [("Network Engineer", "Back of House", True), ("NOC Analyst", "Main Gate", False)],
+        "CCTV and VMS": [("CCTV Operator", "Zone-A", True), ("VMS Engineer", "Back of House", False)],
+        "BMS and Facilities": [("Duty Engineer", "Zone-B", True), ("BMS Operator", "Back of House", False)],
+        "Digital Signage": [("Signage Coordinator", "Main Gate", True), ("AV Technician", "Zone-C", False)],
+        "Guest Communications CRM": [("CRM Duty Lead", "Back of House", True), ("Guest Communications Analyst", "Zone-C", False)],
+    }
+    readiness_pressure = (
+        readiness.groupby("service", as_index=False)
+        .agg(
+            reds=("status", lambda values: int((values == "RED").sum())),
+            ambers=("status", lambda values: int((values == "AMBER").sum())),
+        )
+        .set_index("service")
+    )
+
+    rows: list[dict[str, object]] = []
+    shift_counter = 1
+    start_day = (now - pd.Timedelta(days=1)).floor("D")
+    for service_row in services.itertuples(index=False):
+        pressure = readiness_pressure.loc[service_row.service] if service_row.service in readiness_pressure.index else None
+        red_count = int(pressure["reds"]) if pressure is not None else 0
+        amber_count = int(pressure["ambers"]) if pressure is not None else 0
+        risk_bias = min(0.32, red_count * 0.05 + amber_count * 0.02 + (0.04 if int(service_row.criticality) == 3 else 0.0))
+        for day_offset in range(2):
+            for shift_hour, supervisor in ((6, "Day Operations Manager"), (18, "Night Operations Manager")):
+                for role_name, zone, critical_role in role_map.get(
+                    service_row.service,
+                    [("Duty Lead", "Back of House", True), ("Support Analyst", "Back of House", False)],
+                ):
+                    shift_start = start_day + pd.Timedelta(days=day_offset, hours=shift_hour)
+                    shift_end = shift_start + pd.Timedelta(hours=12)
+                    required_headcount = int(service_row.criticality) + (2 if critical_role else 1) + rng.randint(0, 1)
+                    scheduled_shortfall = 1 if rng.random() < risk_bias + (0.08 if critical_role else 0.03) else 0
+                    if rng.random() < risk_bias * 0.35:
+                        scheduled_shortfall += 1
+                    scheduled_headcount = max(0, required_headcount - scheduled_shortfall)
+                    checked_in_headcount = max(
+                        0,
+                        scheduled_headcount - (1 if scheduled_headcount and rng.random() < risk_bias + 0.06 else 0),
+                    )
+                    training_compliance_rate = float(
+                        np.clip(
+                            rng.normalvariate(0.985 - risk_bias - (0.01 if critical_role else 0.0), 0.02),
+                            0.82,
+                            1.0,
+                        )
+                    )
+                    backfill_required = checked_in_headcount < required_headcount
+                    rows.append(
+                        {
+                            "shift_id": make_shift_id(shift_counter),
+                            "roster_ref": make_roster_ref(shift_counter),
+                            "source_system": _pick(rng, WFM_LABELS),
+                            "service": service_row.service,
+                            "owner_team": service_row.owner_team,
+                            "role_name": role_name,
+                            "zone": zone,
+                            "shift_start": shift_start,
+                            "shift_end": shift_end,
+                            "required_headcount": required_headcount,
+                            "scheduled_headcount": scheduled_headcount,
+                            "checked_in_headcount": checked_in_headcount,
+                            "training_compliance_rate": round(training_compliance_rate, 4),
+                            "critical_role_flag": critical_role,
+                            "backfill_required_flag": backfill_required,
+                            "overtime_flag": bool(backfill_required and rng.random() < 0.55),
+                            "supervisor_role": supervisor,
+                            "shift_status": "AT_RISK" if backfill_required or training_compliance_rate < 0.95 else "COVERED",
+                        }
+                    )
+                    shift_counter += 1
+    return pd.DataFrame(rows)
+
+
+def _generate_parking_mobility(rng: Random, incidents: pd.DataFrame, now: pd.Timestamp) -> pd.DataFrame:
+    venue_areas = ("Main Gate Forecourt", "North Parking", "South Parking", "VIP Drop-off", "Staff Entry")
+    relevant_links = incidents[
+        incidents["service"].isin(
+            [
+                "Ticketing and Gate Validation",
+                "Access Control and Entry Gates",
+                "Venue Wi-Fi and NAC",
+                "POS and Payments",
+            ]
+        )
+    ]["incident_id"].tolist()
+    timestamps = pd.date_range(
+        start=(now - pd.Timedelta(hours=36)).floor("30min"),
+        end=now.floor("30min"),
+        freq="30min",
+        tz="UTC",
+    )
+    rows: list[dict[str, object]] = []
+    event_counter = 1
+    for timestamp in timestamps:
+        is_peak = timestamp.hour in {9, 10, 11, 16, 17, 18, 19}
+        for area in venue_areas:
+            area_bias = 0.10 if area == "Main Gate Forecourt" else 0.06 if area == "North Parking" else 0.03
+            anomaly = bool(is_peak and rng.random() < area_bias)
+            occupancy_pct = float(np.clip(rng.normalvariate(0.72 if is_peak else 0.48, 0.11), 0.18, 1.0))
+            ingress_time = float(np.clip(rng.normalvariate(7.5 if is_peak else 4.5, 2.8), 1.5, 35.0))
+            queue_minutes = float(np.clip(rng.normalvariate(6.0 if is_peak else 2.0, 3.0), 0.0, 40.0))
+            if anomaly:
+                occupancy_pct = float(np.clip(occupancy_pct + rng.uniform(0.15, 0.28), 0.18, 1.0))
+                ingress_time = float(np.clip(ingress_time + rng.uniform(6.0, 14.0), 1.5, 35.0))
+                queue_minutes = float(np.clip(queue_minutes + rng.uniform(6.0, 16.0), 0.0, 40.0))
+            staffing_dependency_flag = bool(queue_minutes >= 10 and rng.random() < 0.6)
+            incident_flag = bool(anomaly and rng.random() < 0.38)
+            linked_incident_id = _pick(rng, relevant_links) if incident_flag and relevant_links else ""
+            rows.append(
+                {
+                    "ts": timestamp,
+                    "arrival_ref": make_arrival_ref(event_counter),
+                    "source_system": _pick(rng, PARKING_MOBILITY_LABELS),
+                    "venue_area": area,
+                    "dashboard_ref": make_dashboard_ref(160 + (event_counter % 9)),
+                    "occupancy_pct": round(occupancy_pct, 4),
+                    "ingress_time_min_p95": round(ingress_time, 1),
+                    "queue_minutes": round(queue_minutes, 1),
+                    "shuttle_on_time_rate": round(float(np.clip(rng.normalvariate(0.96 - (0.05 if anomaly else 0.0), 0.02), 0.75, 1.0)), 4),
+                    "open_lanes": max(1, 5 - (1 if anomaly else 0) - rng.randint(0, 1)),
+                    "staffing_dependency_flag": staffing_dependency_flag,
+                    "incident_flag": incident_flag,
+                    "linked_incident_id": linked_incident_id,
+                }
+            )
+            event_counter += 1
+    return pd.DataFrame(rows)
+
+
+def _generate_access_governance(
+    rng: Random,
+    services: pd.DataFrame,
+    readiness: pd.DataFrame,
+    now: pd.Timestamp,
+) -> pd.DataFrame:
+    app_map: dict[str, list[tuple[str, str, bool]]] = {
+        "Ticketing and Gate Validation": [("Gate Operations Portal", "Supervisor", True), ("Ticketing Admin Console", "Operator", False)],
+        "Access Control and Entry Gates": [("Access Control Command Console", "Administrator", True), ("Gate Controller Admin", "Technician", False)],
+        "POS and Payments": [("POS Back Office", "Administrator", True), ("Payment Gateway Admin", "Support", False)],
+        "Venue Wi-Fi and NAC": [("NAC Console", "Administrator", True), ("Wi-Fi Controller Dashboard", "Engineer", False)],
+        "CCTV and VMS": [("VMS Console", "Operator", True), ("CCTV Archive Manager", "Analyst", False)],
+        "BMS and Facilities": [("BMS Supervisor Workstation", "Engineer", True), ("Facilities Remote Access VPN", "Vendor Support", True)],
+        "Digital Signage": [("Signage CMS", "Publisher", False), ("Media Uploader", "Technician", False)],
+        "Guest Communications CRM": [("CRM Case Console", "Supervisor", True), ("Campaign Manager", "Analyst", False)],
+    }
+    readiness_pressure = (
+        readiness.groupby("service", as_index=False)
+        .agg(
+            reds=("status", lambda values: int((values == "RED").sum())),
+            ambers=("status", lambda values: int((values == "AMBER").sum())),
+        )
+        .set_index("service")
+    )
+    rows: list[dict[str, object]] = []
+    review_counter = 1
+    for service_row in services.itertuples(index=False):
+        pressure = readiness_pressure.loc[service_row.service] if service_row.service in readiness_pressure.index else None
+        red_count = int(pressure["reds"]) if pressure is not None else 0
+        amber_count = int(pressure["ambers"]) if pressure is not None else 0
+        risk_bias = min(0.25, red_count * 0.035 + amber_count * 0.015 + (0.03 if int(service_row.criticality) == 3 else 0.0))
+        for application_name, role_name, privileged_access in app_map.get(
+            service_row.service,
+            [("Operations Console", "Operator", False)],
+        ):
+            provisioned_count = max(1, int(service_row.criticality) + (2 if privileged_access else 1) + rng.randint(0, 2))
+            pending_approvals = rng.randint(0, 2) + (1 if privileged_access and rng.random() < risk_bias + 0.1 else 0)
+            if rng.random() < risk_bias * 0.6:
+                pending_approvals += 1
+            stale_accounts = rng.randint(0, 1) + (1 if privileged_access and rng.random() < risk_bias + 0.08 else 0)
+            mfa_coverage_rate = float(
+                np.clip(
+                    rng.normalvariate(0.988 - risk_bias - (0.015 if privileged_access else 0.0), 0.02),
+                    0.84,
+                    1.0,
+                )
+            )
+            last_certification_at = now - pd.Timedelta(days=rng.randint(20, 120))
+            next_review_due = last_certification_at + pd.Timedelta(days=90)
+            review_status = (
+                "AT_RISK"
+                if pending_approvals or stale_accounts or mfa_coverage_rate < 0.95 or next_review_due < now
+                else "READY"
+            )
+            rows.append(
+                {
+                    "access_review_id": make_access_review_id(review_counter),
+                    "application_ref": f"APP-ACCESS-{review_counter:03d}",
+                    "source_system": _pick(rng, IAM_SSO_LABELS),
+                    "service": service_row.service,
+                    "owner_team": service_row.owner_team,
+                    "application_name": application_name,
+                    "role_name": role_name,
+                    "privileged_access_flag": privileged_access,
+                    "requested_count": provisioned_count + pending_approvals,
+                    "provisioned_count": provisioned_count,
+                    "pending_approvals": pending_approvals,
+                    "stale_accounts": stale_accounts,
+                    "mfa_coverage_rate": round(mfa_coverage_rate, 4),
+                    "last_certification_at": last_certification_at,
+                    "next_review_due": next_review_due,
+                    "segregation_of_duties_flag": bool(privileged_access and rng.random() < risk_bias + 0.07),
+                    "joiner_mover_leaver_backlog": pending_approvals + rng.randint(0, 2),
+                    "break_glass_tested": bool((not privileged_access) or rng.random() < 0.72),
+                    "review_status": review_status,
+                }
+            )
+            review_counter += 1
+    return pd.DataFrame(rows)
+
+
 def generate(seed: int = FIXED_SEED) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     rng = Random(seed)
@@ -442,6 +673,9 @@ def generate(seed: int = FIXED_SEED) -> None:
     kpis = _generate_kpis(rng, now)
     ot_events = _generate_ot_events(rng, incidents, now)
     ticketing_kpis = _generate_ticketing_kpis(rng, incidents, now)
+    wfm_roster = _generate_wfm_roster(rng, services, readiness, now)
+    parking_mobility = _generate_parking_mobility(rng, incidents, now)
+    access_governance = _generate_access_governance(rng, services, readiness, now)
 
     services.to_csv(DATA_DIR / "services.csv", index=False)
     readiness.to_csv(DATA_DIR / "readiness.csv", index=False)
@@ -451,6 +685,9 @@ def generate(seed: int = FIXED_SEED) -> None:
     kpis.to_csv(DATA_DIR / "kpis.csv", index=False)
     ot_events.to_csv(DATA_DIR / "ot_events.csv", index=False)
     ticketing_kpis.to_csv(DATA_DIR / "ticketing_kpis.csv", index=False)
+    wfm_roster.to_csv(DATA_DIR / "wfm_roster.csv", index=False)
+    parking_mobility.to_csv(DATA_DIR / "parking_mobility.csv", index=False)
+    access_governance.to_csv(DATA_DIR / "access_governance.csv", index=False)
     logger.info("Generated deterministic demo datasets in %s", DATA_DIR)
 
 
