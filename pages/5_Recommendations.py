@@ -13,15 +13,37 @@ from typing import Any
 
 import streamlit as st
 
-from src.data import load_data
-from src.metrics import compute_mtta_minutes, compute_mttr_minutes, readiness_score, vendor_scorecard
+from src.data import ensure_data_and_load
+from src.metrics import (
+    compute_mtta_minutes,
+    compute_mttr_minutes,
+    ot_event_summary,
+    readiness_score,
+    ticketing_kpi_summary,
+    vendor_scorecard,
+)
 from src.recommendations import schema as rec_schema
 from src.recommendations import service as rec_service
 from src.recommendations.gemini import call_gemini_stream, parse_and_validate
+from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
 
 st.set_page_config(layout="wide")
 st.title("🧠 Recommendations")
 st.caption("Gemini-powered (falls back to heuristic if key is unavailable)")
+
+# ── Demo mode banner ──────────────────────────────────────────────────────────
+st.info(
+    "⚡ Synthetic dataset — evidence-driven readiness model — example system landscape labels. "
+    + DISCLAIMER,
+    icon="🔬",
+)
+
+# ── Landscape badges ───────────────────────────────────────────────────────────
+badge_cols = st.columns(len(CORE_BADGE_CATEGORIES))
+for col, cat in zip(badge_cols, CORE_BADGE_CATEGORIES):
+    col.caption(f"**{cat.badge_label}**")
+
+st.divider()
 
 # ── Secret / key handling ─────────────────────────────────────────────────────
 def _resolve_api_key() -> str | None:
@@ -57,14 +79,14 @@ with st.sidebar:
         index=0,
     )
     temperature = st.slider("Temperature", 0.0, 1.0, 0.2, 0.05)
-    max_tokens = st.selectbox("Max output tokens", [512, 1024, 1536, 2048], index=1)
+    max_tokens = st.selectbox("Max output tokens", [512, 1024, 1536, 2048], index=2)
     use_stream = st.toggle("Streaming (when key available)", value=True)
 
-# ── Load data ─────────────────────────────────────────────────────────────────
+# ── Load data (auto-generate if missing) ──────────────────────────────────────
 try:
-    data = load_data()
-except FileNotFoundError as e:
-    st.error(str(e))
+    data = ensure_data_and_load()
+except Exception as e:
+    st.error(f"Data load error: {e}")
     st.stop()
 
 # ── Build snapshot (aggregated metrics only — no raw secrets) ─────────────────
@@ -72,6 +94,9 @@ rs = readiness_score(data.readiness)
 vs = vendor_scorecard(data.vendors)
 open_inc = data.incidents[data.incidents["status"].isin(["OPEN", "MITIGATED"])].copy()
 sev12 = open_inc[open_inc["severity"].isin([1, 2])]
+
+ot_sig = ot_event_summary(data.ot_events)
+tkt_sig = ticketing_kpi_summary(data.ticketing_kpis)
 
 snapshot: dict[str, Any] = {
     "readiness": {
@@ -113,6 +138,8 @@ snapshot: dict[str, Any] = {
             .to_dict(orient="records")
         ),
     },
+    "ot_events": ot_sig,
+    "ticketing": tkt_sig,
 }
 
 # ── Action ────────────────────────────────────────────────────────────────────
@@ -210,7 +237,27 @@ with col_r:
         st.markdown(f"- {q}")
 
 st.divider()
+col3, col4 = st.columns(2)
 
+with col3:
+    st.subheader("🏗️ OT Signals")
+    for sig in rec_dict.get("ot_signals", []):
+        st.markdown(f"- {sig}")
+
+    st.subheader("🎫 Ticketing Signals")
+    for sig in rec_dict.get("ticketing_signals", []):
+        st.markdown(f"- {sig}")
+
+with col4:
+    st.subheader("🔧 Incident Improvements")
+    for imp in rec_dict.get("incident_improvements", []):
+        st.markdown(f"- {imp}")
+
+    st.subheader("🤝 Vendor Flags")
+    for flag in rec_dict.get("vendor_flags", []):
+        st.markdown(f"- {flag}")
+
+st.divider()
 col_kpi, col_assume = st.columns(2)
 
 with col_kpi:

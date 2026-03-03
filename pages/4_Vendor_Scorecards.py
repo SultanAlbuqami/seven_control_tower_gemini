@@ -3,17 +3,27 @@ from __future__ import annotations
 import plotly.express as px
 import streamlit as st
 
-from src.data import load_data
+from src.data import ensure_data_and_load
 from src.metrics import vendor_scorecard
+from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
 
 st.set_page_config(layout="wide")
 st.title("📊 Vendor Scorecards")
-st.info("⚡ Synthetic dataset — evidence-driven readiness demo", icon="🔬")
+st.info(
+    "⚡ Synthetic dataset — evidence-driven readiness model — example system landscape labels. " + DISCLAIMER,
+    icon="🔬",
+)
+
+badge_cols = st.columns(len(CORE_BADGE_CATEGORIES))
+for col, cat in zip(badge_cols, CORE_BADGE_CATEGORIES):
+    col.caption(f"**{cat.badge_label}**")
+
+st.divider()
 
 try:
-    data = load_data()
-except FileNotFoundError as e:
-    st.error(str(e))
+    data = ensure_data_and_load()
+except Exception as e:
+    st.error(f"Data load error: {e}")
     st.stop()
 vendors = data.vendors.copy()
 

@@ -29,6 +29,10 @@ def _valid_rec() -> dict:
         ],
         "assumptions": ["Dataset is synthetic"],
         "confidence": 0.75,
+        "ot_signals": ["All OT systems nominal"],
+        "ticketing_signals": ["Scan success rate within bounds"],
+        "incident_improvements": ["Reduce Sev-1 target to 15 min"],
+        "vendor_flags": ["No vendor breaches"],
     }
 
 

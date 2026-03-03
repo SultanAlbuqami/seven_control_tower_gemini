@@ -21,6 +21,8 @@ def _minimal_snapshot() -> dict:
         "evidence": {"missing_count": 5, "missing_top": []},
         "incidents": {"open_count": 1, "open_sev1_2": 1, "mtta_min": 12.0, "mttr_min": 80.0, "open_top": []},
         "vendors": {"breach_vendors": []},
+        "ot_events": {"unacked_sev1": 0, "unacked_sev2": 1, "total_open": 2, "clusters": []},
+        "ticketing": {"anomaly_windows": 1, "min_success_rate": 0.96, "max_latency_p95": 750, "total_offline_fallbacks": 0, "total_denied": 3},
     }
 
 
@@ -44,6 +46,10 @@ def _valid_gemini_json() -> str:
         ],
         "assumptions": ["This is mocked"],
         "confidence": 0.9,
+        "ot_signals": ["All OT systems nominal"],
+        "ticketing_signals": ["Scan success rate within bounds"],
+        "incident_improvements": ["Improve Sev-1 ack time target to < 15 min"],
+        "vendor_flags": ["No vendor breaches detected"],
     })
 
 

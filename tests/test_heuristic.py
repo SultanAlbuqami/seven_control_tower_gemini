@@ -15,6 +15,8 @@ def _empty_snapshot() -> dict:
         "evidence": {"missing_count": 0, "missing_top": []},
         "incidents": {"open_count": 0, "open_sev1_2": 0, "mtta_min": None, "mttr_min": None, "open_top": []},
         "vendors": {"breach_vendors": []},
+        "ot_events": {"unacked_sev1": 0, "unacked_sev2": 0, "total_open": 0, "clusters": []},
+        "ticketing": {"anomaly_windows": 0, "min_success_rate": 0.99, "max_latency_p95": 400, "total_offline_fallbacks": 0, "total_denied": 0},
     }
 
 
@@ -30,6 +32,8 @@ def _critical_snapshot() -> dict:
     s["vendors"]["breach_vendors"] = [
         {"vendor": "Vendor-TIX", "service": "Ticketing", "breach_count": 2}
     ]
+    s["ot_events"] = {"unacked_sev1": 2, "unacked_sev2": 4, "total_open": 10, "clusters": [{"zone": "Zone-A", "subsystem": "BMS", "size": 6}]}
+    s["ticketing"] = {"anomaly_windows": 5, "min_success_rate": 0.91, "max_latency_p95": 1800, "total_offline_fallbacks": 3, "total_denied": 12}
     return s
 
 
@@ -112,3 +116,50 @@ def test_vendor_breach_mentioned_in_risks():
     result = heuristic.recommend(s)
     risk_texts = " ".join(r["risk"] for r in result["top_risks"])
     assert "vendor" in risk_texts.lower() or "breach" in risk_texts.lower() or "sla" in risk_texts.lower()
+
+
+# ── OT + Ticketing signal sections ───────────────────────────────────────────
+
+def test_ot_signals_always_present():
+    for snap in (_empty_snapshot(), _critical_snapshot()):
+        result = heuristic.recommend(snap)
+        assert isinstance(result.get("ot_signals"), list)
+        assert len(result["ot_signals"]) >= 1
+
+
+def test_ticketing_signals_always_present():
+    for snap in (_empty_snapshot(), _critical_snapshot()):
+        result = heuristic.recommend(snap)
+        assert isinstance(result.get("ticketing_signals"), list)
+        assert len(result["ticketing_signals"]) >= 1
+
+
+def test_ot_sev1_triggers_critical_signal():
+    s = _empty_snapshot()
+    s["ot_events"] = {"unacked_sev1": 3, "unacked_sev2": 0, "total_open": 3, "clusters": []}
+    result = heuristic.recommend(s)
+    ot_text = " ".join(result["ot_signals"]).lower()
+    assert "sev-1" in ot_text or "sev1" in ot_text or "unacked" in ot_text
+
+
+def test_ticketing_anomaly_lowers_confidence():
+    clean = _empty_snapshot()
+    anomalous = _empty_snapshot()
+    anomalous["ticketing"] = {"anomaly_windows": 8, "min_success_rate": 0.90, "max_latency_p95": 2000, "total_offline_fallbacks": 5, "total_denied": 20}
+    clean_conf = heuristic.recommend(clean)["confidence"]
+    anomalous_conf = heuristic.recommend(anomalous)["confidence"]
+    assert anomalous_conf <= clean_conf, "Anomalous ticketing should lower or equal confidence"
+
+
+def test_incident_improvements_always_present():
+    for snap in (_empty_snapshot(), _critical_snapshot()):
+        result = heuristic.recommend(snap)
+        assert isinstance(result.get("incident_improvements"), list)
+        assert len(result["incident_improvements"]) >= 1
+
+
+def test_vendor_flags_always_present():
+    for snap in (_empty_snapshot(), _critical_snapshot()):
+        result = heuristic.recommend(snap)
+        assert isinstance(result.get("vendor_flags"), list)
+        assert len(result["vendor_flags"]) >= 1

@@ -58,4 +58,58 @@
 
 ## D-008 · Packaging scripts
 
+**Decision**: Provide both `scripts/package_zip.ps1` (Windows) and `scripts/package_zip.sh` (bash) producing `seven_control_tower_gemini_demo.zip`.
+
+**Exclusions**: `.venv/`, `.streamlit/secrets.toml`, `evidence/`, `*.log`, `__pycache__/`.
+
+---
+
+## D-009 · System landscape registry
+
+**Decision**: Create `src/system_landscape.py` as the single source of truth for all system category definitions, label pools, ID patterns, and anomaly thresholds.
+
+**Why**: Centralising landscape labels prevents drift between seed data, UI badge display, and recommendation context. A frozen dataclass (`SystemCategory`) is simpler than a config file and is type-checkable.
+
+**Safe default**: Non-optional categories are listed in `CORE_BADGE_CATEGORIES`; all pages show the same badge row.
+
+---
+
+## D-010 · OT events schema and generation
+
+**Decision**: `ot_events.csv` uses 80 rows over a 7-day window with `EVT-OT-XXXXXX` IDs, severity 1–4, subsystems BMS/AccessControl/CCTV, and NaT for unacknowledged events.
+
+**Why**: 80 rows provides enough variance for meaningful filter/chart interactions while staying fast. NaT `ack_time` is the canonical representation of unacked state — avoids a separate `is_acked` boolean.
+
+---
+
+## D-011 · Ticketing KPI schema and generation
+
+**Decision**: `ticketing_kpis.csv` uses 15-minute intervals × 48 hours × 6 venue areas with ~5% peak windows having injected anomalies.
+
+**Anomaly thresholds** (in `THRESHOLDS`):
+- `scan_success_rate_warn = 0.97`, `scan_success_rate_crit = 0.94`
+- `latency_warn_ms = 800`, `latency_crit_ms = 1500`
+
+**Why**: 15-min granularity matches typical ops dashboards. 48h window spans full event-day rehearsal + Day-One. 5% anomaly injection provides realistic demo signal without overwhelming the charts.
+
+---
+
+## D-012 · Recommendation schema extension
+
+**Decision**: Add four new required keys to the schema: `ot_signals`, `ticketing_signals`, `incident_improvements`, `vendor_flags`.
+
+**Why**: Both the heuristic and Gemini paths must always produce these fields so the UI can unconditionally render them. Making them required (not optional) prevents silent omissions from Gemini and simplifies validation.
+
+**Safe default**: Each key defaults to a single-item list with a "nominal" or "no issues detected" message when no signal conditions are triggered.
+
+---
+
+## D-013 · Auto-seed on startup
+
+**Decision**: `app.py` calls `ensure_data_present()` on every page load (deferred import inside the function to avoid circular). Pages use `ensure_data_and_load()` from `src/data.py`.
+
+**Why**: Eliminates the manual "Generate data" button as a first-run friction point. The check is O(n file stat calls) and completes in <10 ms if all files exist. If regeneration is needed, it runs once and is not repeated.
+
+**Safe default**: Generation errors surface as `st.error()` banners; the app does not crash.
+
 **Decision**: Both `.ps1` (Windows PowerShell) and `.sh` (WSL/Linux/macOS) packaging scripts produce `seven_control_tower_gemini_demo.zip`, excluding `.venv/`, `.streamlit/secrets.toml`, `evidence/`, and `*.log`.

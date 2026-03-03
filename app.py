@@ -6,6 +6,9 @@ from pathlib import Path
 
 import streamlit as st
 
+from src.seed import ensure_data_present
+from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
+
 st.set_page_config(
     page_title="Day-One Operations Readiness Control Tower",
     page_icon="🧭",
@@ -13,35 +16,36 @@ st.set_page_config(
 )
 
 st.title("🧭 Day-One Operations Readiness Control Tower")
-st.caption("Readiness gates • Evidence packs • Incidents • Vendor scorecards • Live recommendations")
+st.caption("Readiness gates • Evidence packs • Incidents • Vendor scorecards • OT Events • Ticketing KPIs • Live recommendations")
 
-st.info("⚡ Synthetic dataset — evidence-driven readiness demo", icon="🔬")
+st.info(
+    "⚡ Synthetic dataset — evidence-driven readiness model — example system landscape labels. " + DISCLAIMER,
+    icon="🔬",
+)
 
-# ── Check whether data exists; offer generation button ──────────────────────
-DATA_DIR = Path(__file__).parent / "data"
-_data_files = ["services.csv", "readiness.csv", "evidence.csv", "incidents.csv", "vendors.csv", "kpis.csv"]
-data_missing = not all((DATA_DIR / f).exists() for f in _data_files)
+# ── Landscape badges ─────────────────────────────────────────────────────────
+badge_cols = st.columns(len(CORE_BADGE_CATEGORIES))
+for col, cat in zip(badge_cols, CORE_BADGE_CATEGORIES):
+    col.caption(f"**{cat.badge_label}**")
 
-if data_missing:
-    st.warning(
-        "Demo data files not found. Click the button below to generate them now.",
-        icon="⚠️",
-    )
-    if st.button("⚙️ Generate Sample Data", type="primary"):
-        with st.spinner("Generating demo data…"):
-            result = subprocess.run(
-                [sys.executable, "-m", "src.seed"],
-                capture_output=True,
-                text=True,
-            )
-        if result.returncode == 0:
-            st.success("Demo data generated successfully. Use the sidebar to explore.")
-            st.rerun()
-        else:
-            st.error(f"Seed failed:\n```\n{result.stderr}\n```")
-else:
-    st.markdown(
-        """
+st.divider()
+
+# ── Auto-seed on startup (silent) ────────────────────────────────────────────
+_DATA_DIR = Path(__file__).parent / "data"
+_REQUIRED_FILES = [
+    "services.csv", "readiness.csv", "evidence.csv",
+    "incidents.csv", "vendors.csv", "kpis.csv",
+    "ot_events.csv", "ticketing_kpis.csv",
+]
+
+with st.spinner("Checking demo data…"):
+    try:
+        ensure_data_present()
+    except Exception as _seed_err:
+        st.error(f"Auto-seed failed: {_seed_err}")
+
+st.markdown(
+    """
 Use the pages in the left sidebar:
 
 | Page | What it shows |
@@ -51,9 +55,25 @@ Use the pages in the left sidebar:
 | **Evidence Pack** | Missing evidence items and ownership |
 | **Incidents** | MTTA / MTTR and severity discipline |
 | **Vendor Scorecards** | SLA compliance and breach visibility |
-| **Recommendations** | Gemini-powered (or heuristic) actions for next 24h / 7d |
+| **OT Events** | BMS / Access Control / CCTV alarm monitor |
+| **Ticketing KPIs** | Gate scan success, QR latency, throughput |
+| **Recommendations** | Gemini-powered (or heuristic) actions for next 24 h / 7 d |
 """
-    )
+)
+
+# ── Optional manual regeneration ─────────────────────────────────────────────
+with st.expander("⚙️ Advanced — regenerate demo data"):
+    if st.button("Regenerate Sample Data", type="secondary"):
+        with st.spinner("Regenerating…"):
+            result = subprocess.run(
+                [sys.executable, "-m", "src.seed"],
+                capture_output=True,
+                text=True,
+            )
+        if result.returncode == 0:
+            st.success("Demo data regenerated. Refresh any open page.")
+        else:
+            st.error(f"Seed failed:\n```\n{result.stderr}\n```")
 
 with st.sidebar:
     st.subheader("3-min interview demo")
@@ -62,6 +82,8 @@ with st.sidebar:
         "**Step 2** — Readiness: show RED gate heatmap and top blockers\n\n"
         "**Step 3** — Evidence Pack: filter MISSING items; show owner chase list\n\n"
         "**Step 4** — Incidents: MTTA/MTTR; highlight Sev-1/2 escalations\n\n"
-        "**Step 5** — Recommendations: click Generate (works offline too)\n\n"
+        "**Step 5** — OT Events: unacked Sev-1/2 alarms, mean ack time\n\n"
+        "**Step 6** — Ticketing KPIs: scan success rate, QR latency anomalies\n\n"
+        "**Step 7** — Recommendations: click Generate (works offline too)\n\n"
         "**Go/No-Go** answer: 0 RED gates + 0 open Sev-1/2 + evidence ≥ 90%"
     )

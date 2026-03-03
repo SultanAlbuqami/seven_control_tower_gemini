@@ -27,6 +27,10 @@ SCHEMA_DESCRIPTION = """
   "kpis_to_watch": [
     {"kpi": "<string>", "reason": "<string>", "threshold": "<string>"}
   ],
+  "ot_signals": ["<string>"],
+  "ticketing_signals": ["<string>"],
+  "incident_improvements": ["<string>"],
+  "vendor_flags": ["<string>"],
   "assumptions": ["<string>"],
   "confidence": 0.0
 }
@@ -39,12 +43,23 @@ REQUIRED_KEYS = {
     "actions_next_7d",
     "vendor_questions",
     "kpis_to_watch",
+    "ot_signals",
+    "ticketing_signals",
+    "incident_improvements",
+    "vendor_flags",
     "assumptions",
     "confidence",
 }
 
 _TOP_RISK_KEYS = {"risk", "impact", "evidence", "owner", "next_action"}
 _KPI_WATCH_KEYS = {"kpi", "reason", "threshold"}
+
+# Arrays that must simply be lists (content is strings)
+_ARRAY_KEYS = (
+    "actions_next_24h", "actions_next_7d", "vendor_questions",
+    "ot_signals", "ticketing_signals", "incident_improvements",
+    "vendor_flags", "assumptions",
+)
 
 
 def validate(obj: Any) -> list[str]:
@@ -73,7 +88,7 @@ def validate(obj: Any) -> list[str]:
                     if mk:
                         errors.append(f"top_risks[{i}] missing keys: {sorted(mk)}")
 
-    for key in ("actions_next_24h", "actions_next_7d", "vendor_questions", "assumptions"):
+    for key in _ARRAY_KEYS:
         if key in obj and not isinstance(obj[key], list):
             errors.append(f"{key} must be an array")
 
@@ -98,6 +113,10 @@ def validate(obj: Any) -> list[str]:
             errors.append("confidence must be a number")
 
     return errors
+
+
+def is_valid(obj: Any) -> bool:
+    return not validate(obj)
 
 
 def is_valid(obj: Any) -> bool:
