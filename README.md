@@ -90,6 +90,7 @@ No key is required. The recommendations page will use the deterministic heuristi
 - ITSM/CMDB: ServiceNow, Jira Service Management, BMC Remedy, Freshservice
 - CMMS/EAM: IBM Maximo, SAP PM, Oracle EAM
 - EDMS/Document Control: SharePoint/M365, Generic EDMS
+- Project Controls / PMIS: Oracle Primavera Unifier, PMWeb, Procore
 - ERP/Enterprise Apps: SAP S/4HANA, Oracle ERP
 - Guest/CRM: Microsoft Dynamics 365, Adobe Experience, Sprinklr
 - Observability/Monitoring: Azure Monitor/Log Analytics, Prometheus/Grafana, Datadog, New Relic

@@ -111,3 +111,15 @@ Why: dependency health is part of the required quality gate, not just a local co
 Decision: when offline smoke verification is required, temporarily move the local `.streamlit/secrets.toml` file out of the way and restore it after the check.
 
 Why: a local developer secret should not accidentally convert an offline smoke into a live LLM test.
+
+## D-019 - Hover glossary for acronym badges
+
+Decision: keep acronym expansions in `src/system_landscape.py` and expose them through native hover tooltips on the shared landscape badges.
+
+Why: the abbreviations are common in operations programs, but interview viewers should not have to guess what `ITSM`, `CMDB`, `CMMS`, or `EDMS` mean.
+
+## D-020 - PMIS as an optional extension, not a core dependency
+
+Decision: add `PMIS` to the system landscape as an optional Project Controls extension and include it in ORR tracker example labels, without making it a mandatory source for the demo.
+
+Why: PMIS is useful when the conversation needs stronger project-controls and handover traceability, but the control tower still runs coherently with CMDB, ORR, EDMS, ITSM, OT, and ticketing sources alone.

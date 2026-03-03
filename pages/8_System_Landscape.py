@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from src.system_landscape import ALL_CATEGORIES, DEFAULT_STACK_NAME, DISCLAIMER
+from src.system_landscape import ALL_CATEGORIES, DEFAULT_STACK_NAME, DISCLAIMER, acronym_guide_rows
 from src.ui import configure_page, render_page_header, render_section_header, render_status_badges
 
 configure_page("System Landscape", icon=":material/account_tree:")
@@ -36,6 +36,8 @@ for category in ALL_CATEGORIES:
     rows.append(
         {
             "family": category.family,
+            "badge": category.badge_label,
+            "full_name": category.badge_tooltip,
             "category": category.category,
             "example_systems": ", ".join(category.examples),
             "contributes": ", ".join(category.contributions),
@@ -43,6 +45,9 @@ for category in ALL_CATEGORIES:
             "id_rule": category.id_rule,
         }
     )
+
+render_section_header("Acronym guide", "Hover the badges at the top of every page to see these expansions.")
+st.dataframe(pd.DataFrame(acronym_guide_rows()), use_container_width=True, hide_index=True)
 
 render_section_header("Typical production systems (examples)", "Use this table when the panel asks how the control tower maps to a real venue landscape.")
 st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)

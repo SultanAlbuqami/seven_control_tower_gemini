@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 from typing import Any, Iterable
 
 import pandas as pd
@@ -228,6 +229,7 @@ def apply_global_styles() -> None:
             color: var(--ink);
             font-size: 0.84rem;
             font-weight: 600;
+            cursor: help;
           }}
 
           .badge .dot {{
@@ -335,7 +337,14 @@ def render_page_header(page_name: str, description: str) -> None:
 
 def render_landscape_badges() -> None:
     badges = "".join(
-        f"<div class='badge'><span class='dot'></span><span>{category.badge_label}</span></div>"
+        (
+            "<div class='badge' "
+            f"title='{html.escape(category.badge_tooltip, quote=True)}' "
+            f"aria-label='{html.escape(category.badge_tooltip, quote=True)}'>"
+            "<span class='dot'></span>"
+            f"<span>{html.escape(category.badge_label)}</span>"
+            "</div>"
+        )
         for category in CORE_BADGE_CATEGORIES
     )
     st.markdown(f"<div class='badge-row'>{badges}</div>", unsafe_allow_html=True)

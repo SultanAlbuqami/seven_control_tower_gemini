@@ -17,6 +17,7 @@ class LandscapeCategory:
     slug: str
     family: str
     badge_label: str
+    badge_tooltip: str
     category: str
     examples: tuple[str, ...]
     contributions: tuple[str, ...]
@@ -108,16 +109,42 @@ SIGNAGE_LABELS: Final[tuple[str, ...]] = (
     "Signage CMS (example)",
 )
 
+PMIS_LABELS: Final[tuple[str, ...]] = (
+    "Oracle Primavera Unifier (example)",
+    "PMWeb (example)",
+    "Procore (example)",
+)
+
 ORR_TRACKER_LABELS: Final[tuple[str, ...]] = (
     "ORR Tracker / SharePoint (example)",
     "ORR Tracker / Project Controls (example)",
+    "PMIS / Project Controls (example)",
 )
+
+ACRONYM_GLOSSARY: Final[dict[str, str]] = {
+    "BMS": "Building Management System",
+    "CMDB": "Configuration Management Database",
+    "CMMS": "Computerized Maintenance Management System",
+    "CRM": "Customer Relationship Management",
+    "CCTV": "Closed-Circuit Television",
+    "EAM": "Enterprise Asset Management",
+    "EDMS": "Electronic Document Management System",
+    "ERP": "Enterprise Resource Planning",
+    "ITSM": "IT Service Management",
+    "NAC": "Network Access Control",
+    "OT": "Operational Technology",
+    "PMIS": "Project Management Information System",
+    "POS": "Point of Sale",
+    "SIEM": "Security Information and Event Management",
+    "VMS": "Video Management System",
+}
 
 LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
     LandscapeCategory(
         slug="itsm_cmdb",
         family="Enterprise / Corporate",
         badge_label="ITSM / CMDB",
+        badge_tooltip="IT Service Management / Configuration Management Database",
         category="ITSM/CMDB",
         examples=ITSM_CMDB_LABELS,
         contributions=("Incidents", "Change references", "Service ownership", "CI metadata"),
@@ -128,6 +155,7 @@ LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
         slug="cmms_eam",
         family="Enterprise / Corporate",
         badge_label="CMMS / EAM",
+        badge_tooltip="Computerized Maintenance Management System / Enterprise Asset Management",
         category="CMMS/EAM",
         examples=CMMS_EAM_LABELS,
         contributions=("Punch lists", "Maintenance backlog", "Asset readiness"),
@@ -138,6 +166,7 @@ LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
         slug="edms_document_control",
         family="Enterprise / Corporate",
         badge_label="EDMS",
+        badge_tooltip="Electronic Document Management System",
         category="EDMS/Document Control",
         examples=EDMS_LABELS,
         contributions=("Evidence packs", "Approvals", "Document control"),
@@ -148,6 +177,7 @@ LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
         slug="erp_enterprise_apps",
         family="Enterprise / Corporate",
         badge_label="ERP",
+        badge_tooltip="Enterprise Resource Planning",
         category="ERP/Enterprise Apps",
         examples=ERP_LABELS,
         contributions=("Commercial context", "Contract metadata", "Cost ownership"),
@@ -159,6 +189,7 @@ LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
         slug="guest_crm",
         family="Enterprise / Corporate",
         badge_label="Guest / CRM",
+        badge_tooltip="Guest systems / Customer Relationship Management",
         category="Guest/CRM",
         examples=CRM_LABELS,
         contributions=("Guest communications", "Campaign coordination", "Case context"),
@@ -170,6 +201,7 @@ LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
         slug="observability_monitoring",
         family="Enterprise / Corporate",
         badge_label="Observability",
+        badge_tooltip="Monitoring, telemetry, logs, traces, and alerting",
         category="Observability/Monitoring",
         examples=OBSERVABILITY_LABELS,
         contributions=("Availability KPIs", "Latency", "Vendor dashboards"),
@@ -180,6 +212,7 @@ LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
         slug="logging_siem",
         family="Enterprise / Corporate",
         badge_label="Logging / SIEM",
+        badge_tooltip="Logging / Security Information and Event Management",
         category="Logging/SIEM",
         examples=SIEM_LABELS,
         contributions=("Security event context", "Correlation support"),
@@ -188,9 +221,22 @@ LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
         optional=True,
     ),
     LandscapeCategory(
+        slug="pmis_project_controls",
+        family="Enterprise / Corporate",
+        badge_label="PMIS",
+        badge_tooltip="Project Management Information System",
+        category="Project Controls / PMIS",
+        examples=PMIS_LABELS,
+        contributions=("Milestones", "Handover packages", "Authority approvals", "Action tracking"),
+        trace_fields=("source_system", "doc_ref", "service_id"),
+        id_rule="ACT-000123 or PKG-ORR-001",
+        optional=True,
+    ),
+    LandscapeCategory(
         slug="ot_events_feed",
         family="Venue / OT and Visitor Systems",
         badge_label="OT Events",
+        badge_tooltip="Operational Technology events and alarms",
         category="OT Events Feed",
         examples=OT_EVENT_FEED_LABELS,
         contributions=("Live alarms", "Subsystem health", "Device-level traces"),
@@ -201,6 +247,7 @@ LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
         slug="bms_facilities",
         family="Venue / OT and Visitor Systems",
         badge_label="BMS",
+        badge_tooltip="Building Management System",
         category="BMS/Facilities vendors",
         examples=BMS_VENDOR_LABELS,
         contributions=("Building automation context", "Facilities ownership"),
@@ -212,6 +259,7 @@ LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
         slug="vms_cctv",
         family="Venue / OT and Visitor Systems",
         badge_label="VMS / CCTV",
+        badge_tooltip="Video Management System / Closed-Circuit Television",
         category="VMS/CCTV",
         examples=VMS_CCTV_LABELS,
         contributions=("Camera health", "Security visibility", "Alarm context"),
@@ -223,6 +271,7 @@ LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
         slug="access_control",
         family="Venue / OT and Visitor Systems",
         badge_label="Access",
+        badge_tooltip="Physical access control systems",
         category="Access Control",
         examples=ACCESS_CONTROL_LABELS,
         contributions=("Door and gate controller state", "Entry-device alarms"),
@@ -234,6 +283,7 @@ LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
         slug="ticketing_gate_validation",
         family="Venue / OT and Visitor Systems",
         badge_label="Ticketing",
+        badge_tooltip="Ticketing and gate validation telemetry",
         category="Ticketing and Gate Validation",
         examples=TICKETING_LABELS,
         contributions=("Scan success", "QR latency", "Throughput", "Offline fallback events"),
@@ -244,6 +294,7 @@ LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
         slug="pos_payments",
         family="Venue / OT and Visitor Systems",
         badge_label="POS / Payments",
+        badge_tooltip="Point of Sale and payment telemetry",
         category="POS/Payments",
         examples=POS_PAYMENTS_LABELS,
         contributions=("Payment dependency signals", "Revenue protection"),
@@ -255,6 +306,7 @@ LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
         slug="network_wifi_nac",
         family="Venue / OT and Visitor Systems",
         badge_label="Network",
+        badge_tooltip="Network, Wi-Fi, and network access control visibility",
         category="Network/Wi-Fi/NAC",
         examples=NETWORK_LABELS,
         contributions=("Connectivity health", "Wi-Fi readiness", "Dependency visibility"),
@@ -266,6 +318,7 @@ LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
         slug="queue_footfall_analytics",
         family="Venue / OT and Visitor Systems",
         badge_label="Queue / Footfall",
+        badge_tooltip="Crowd, queue, and footfall analytics",
         category="Queue/Footfall Analytics",
         examples=QUEUE_ANALYTICS_LABELS,
         contributions=("Guest flow context", "Demand signals", "Congestion patterns"),
@@ -277,6 +330,7 @@ LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
         slug="digital_signage",
         family="Venue / OT and Visitor Systems",
         badge_label="Signage",
+        badge_tooltip="Digital signage and wayfinding content management",
         category="Digital Signage",
         examples=SIGNAGE_LABELS,
         contributions=("Wayfinding readiness", "Guest comms coverage"),
@@ -309,6 +363,13 @@ THRESHOLDS: Final[dict[str, float | int]] = {
     "ot_unacked_sev1_warn": 0,
     "ot_unacked_sev2_warn": 2,
 }
+
+
+def acronym_guide_rows() -> list[dict[str, str]]:
+    return [
+        {"abbreviation": acronym, "full_name": full_name}
+        for acronym, full_name in sorted(ACRONYM_GLOSSARY.items())
+    ]
 
 
 def make_ci_id(number: int) -> str:
