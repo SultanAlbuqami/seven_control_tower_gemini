@@ -5,8 +5,10 @@ import streamlit as st
 
 from src.data import ensure_data_and_load
 from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
+from src.ui import apply_global_styles, readiness_scale, style_plotly
 
 st.set_page_config(layout="wide")
+apply_global_styles()
 st.title("🟩🟧🟥 Readiness (Services × Gates)")
 st.info(
     "⚡ Synthetic dataset — evidence-driven readiness model — example system landscape labels. " + DISCLAIMER,
@@ -52,7 +54,11 @@ with right:
         pivot,
         aspect="auto",
         labels=dict(x="Gate", y="Service", color="Status"),
+        color_continuous_scale=readiness_scale(),
+        zmin=-1,
+        zmax=2,
     )
+    style_plotly(fig)
     st.plotly_chart(fig, use_container_width=True)
 
 st.divider()

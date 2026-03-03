@@ -9,8 +9,10 @@ import streamlit as st
 
 from src.data import ensure_data_and_load
 from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER, THRESHOLDS
+from src.ui import STATUS_COLORS, apply_global_styles, style_plotly
 
 st.set_page_config(layout="wide")
+apply_global_styles()
 st.title("🎫 Ticketing KPIs")
 st.caption("Gate scan success / QR validation latency / throughput — 48-hour rolling view")
 
@@ -123,6 +125,7 @@ with left:
         fig.add_hline(y=warn_sr, line_dash="dash", line_color="orange", annotation_text=f"Warn {warn_sr:.0%}")
         fig.add_hline(y=crit_sr, line_dash="dash", line_color="red", annotation_text=f"Crit {crit_sr:.0%}")
         fig.update_yaxes(tickformat=".1%")
+        style_plotly(fig)
         st.plotly_chart(fig, use_container_width=True)
 
 with right:
@@ -138,6 +141,7 @@ with right:
                        line_color="orange", annotation_text=f"Warn {THRESHOLDS['ticketing_latency_warn_ms']} ms")
         fig2.add_hline(y=crit_lat, line_dash="dash",
                        line_color="red", annotation_text=f"Crit {crit_lat} ms")
+        style_plotly(fig2)
         st.plotly_chart(fig2, use_container_width=True)
 
 # ── Per-area throughput ────────────────────────────────────────────────────────
@@ -148,6 +152,7 @@ if not df.empty and "ts" in df.columns and "gate_throughput_ppm" in df.columns a
         title="Gate Throughput (persons/min) by Area",
         labels={"gate_throughput_ppm": "Throughput (ppm)", "ts": "Time"},
     )
+    style_plotly(fig3)
     st.plotly_chart(fig3, use_container_width=True)
 
 # ── Per-area scan success heatmap-style ───────────────────────────────────────
@@ -157,13 +162,13 @@ if not df.empty and "venue_area" in df.columns and "scan_success_rate" in df.col
     area_agg["status"] = area_agg["scan_success_rate"].apply(
         lambda v: "CRIT" if v < crit_sr else ("WARN" if v < warn_sr else "OK")
     )
-    color_map = {"OK": "green", "WARN": "orange", "CRIT": "red"}
     fig4 = px.bar(
         area_agg, x="venue_area", y="scan_success_rate", color="status",
-        color_discrete_map=color_map,
+        color_discrete_map=STATUS_COLORS,
         title="Mean Scan Success Rate by Area (filtered period)",
     )
     fig4.update_yaxes(tickformat=".1%", range=[0.85, 1.0])
+    style_plotly(fig4)
     st.plotly_chart(fig4, use_container_width=True)
 
 # ── Anomaly rows highlight ─────────────────────────────────────────────────────

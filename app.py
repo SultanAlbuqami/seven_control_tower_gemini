@@ -8,12 +8,15 @@ import streamlit as st
 
 from src.seed import ensure_data_present
 from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
+from src.ui import apply_global_styles
 
 st.set_page_config(
     page_title="Day-One Operations Readiness Control Tower",
     page_icon="🧭",
     layout="wide",
 )
+
+apply_global_styles()
 
 st.title("🧭 Day-One Operations Readiness Control Tower")
 st.caption("Readiness gates • Evidence packs • Incidents • Vendor scorecards • OT Events • Ticketing KPIs • Live recommendations")

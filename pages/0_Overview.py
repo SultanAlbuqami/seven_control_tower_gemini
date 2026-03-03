@@ -6,8 +6,10 @@ import streamlit as st
 from src.data import ensure_data_and_load
 from src.metrics import compute_mtta_minutes, compute_mttr_minutes, readiness_score, vendor_scorecard
 from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
+from src.ui import SEVERITY_COLORS, apply_global_styles, style_plotly
 
 st.set_page_config(layout="wide")
+apply_global_styles()
 st.title("📍 Overview")
 st.info(
     "⚡ Synthetic dataset — evidence-driven readiness model — example system landscape labels. " + DISCLAIMER,
@@ -55,7 +57,14 @@ with right:
     if open_inc.empty:
         st.info("No open incidents in current dataset.")
     else:
-        fig = px.histogram(open_inc, x="service", color="severity", title="Open incidents")
+        fig = px.histogram(
+            open_inc,
+            x="service",
+            color="severity",
+            color_discrete_map=SEVERITY_COLORS,
+            title="Open incidents",
+        )
+        style_plotly(fig)
         st.plotly_chart(fig, use_container_width=True)
 
 st.divider()
@@ -64,6 +73,7 @@ kpis = data.kpis.copy()
 if not kpis.empty:
     recent = kpis.sort_values("ts").groupby(["kpi", "service"], as_index=False).tail(48)
     fig = px.line(recent, x="ts", y="value", color="kpi", line_group="service", title="Recent KPI trend")
+    style_plotly(fig)
     st.plotly_chart(fig, use_container_width=True)
 
 with st.expander("Notes"):

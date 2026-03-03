@@ -4,8 +4,10 @@ import streamlit as st
 
 from src.data import ensure_data_and_load
 from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
+from src.ui import apply_global_styles
 
 st.set_page_config(layout="wide")
+apply_global_styles()
 st.title("📦 Evidence Pack")
 st.info(
     "⚡ Synthetic dataset — evidence-driven readiness model — example system landscape labels. " + DISCLAIMER,

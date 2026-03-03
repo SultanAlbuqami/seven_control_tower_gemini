@@ -11,8 +11,10 @@ import streamlit as st
 from src.data import ensure_data_and_load
 from src.metrics import compute_ot_mean_ack_minutes
 from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER, THRESHOLDS
+from src.ui import SEVERITY_COLORS, apply_global_styles, style_plotly
 
 st.set_page_config(layout="wide")
+apply_global_styles()
 st.title("🏗️ OT Events")
 st.caption("BMS / Access Control / CCTV alarm feed — example system landscape labels")
 
@@ -103,10 +105,11 @@ with left:
     if not df.empty and "subsystem" in df.columns:
         fig = px.histogram(
             df, x="subsystem", color="severity",
-            color_discrete_sequence=px.colors.sequential.Reds_r,
+            color_discrete_map=SEVERITY_COLORS,
             title="OT Event Count by Subsystem",
             labels={"subsystem": "Subsystem", "count": "Events"},
         )
+        style_plotly(fig)
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("No data for chart.")
@@ -116,9 +119,10 @@ with right:
     if not df.empty and "zone" in df.columns:
         fig2 = px.histogram(
             df, x="zone", color="severity",
-            color_discrete_sequence=px.colors.sequential.Oranges_r,
+            color_discrete_map=SEVERITY_COLORS,
             title="OT Event Count by Zone",
         )
+        style_plotly(fig2)
         st.plotly_chart(fig2, use_container_width=True)
     else:
         st.info("No data for chart.")
@@ -136,8 +140,9 @@ if not df.empty and "event_time" in df.columns:
             symbol="subsystem" if "subsystem" in timeline_df.columns else None,
             hover_data=["ot_event_id", "alarm_type", "device_id"] if "ot_event_id" in timeline_df.columns else None,
             title="OT Alarm Timeline",
-            color_continuous_scale="Reds_r",
+            color_discrete_map=SEVERITY_COLORS,
         )
+        style_plotly(fig3)
         st.plotly_chart(fig3, use_container_width=True)
 
 # ── Alarm type breakdown ────────────────────────────────────────────────────────
@@ -147,6 +152,7 @@ if not df.empty and "alarm_type" in df.columns:
     at_counts.columns = ["alarm_type", "count"]
     fig4 = px.bar(at_counts, x="alarm_type", y="count", color="count",
                   color_continuous_scale="Reds", title="Alarm Types (filtered)")
+    style_plotly(fig4)
     st.plotly_chart(fig4, use_container_width=True)
 
 # ── Table & download ───────────────────────────────────────────────────────────

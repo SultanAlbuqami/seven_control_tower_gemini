@@ -6,8 +6,10 @@ import streamlit as st
 from src.data import ensure_data_and_load
 from src.metrics import compute_mtta_minutes, compute_mttr_minutes
 from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
+from src.ui import SEVERITY_COLORS, apply_global_styles, style_plotly
 
 st.set_page_config(layout="wide")
+apply_global_styles()
 st.title("🚨 Incidents")
 st.info(
     "⚡ Synthetic dataset — evidence-driven readiness model — example system landscape labels. " + DISCLAIMER,
@@ -53,7 +55,14 @@ k3.metric("MTTR (min)", "-" if mttr is None else f"{mttr:.1f}")
 st.divider()
 st.subheader("Opened incidents distribution")
 if not inc.empty:
-    fig = px.histogram(inc, x="opened_at", color="severity", nbins=24)
+    fig = px.histogram(
+        inc,
+        x="opened_at",
+        color="severity",
+        color_discrete_map=SEVERITY_COLORS,
+        nbins=24,
+    )
+    style_plotly(fig)
     st.plotly_chart(fig, use_container_width=True)
 else:
     st.info("No incidents match the current filters.")

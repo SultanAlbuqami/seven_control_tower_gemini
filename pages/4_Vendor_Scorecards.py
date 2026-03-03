@@ -6,8 +6,10 @@ import streamlit as st
 from src.data import ensure_data_and_load
 from src.metrics import vendor_scorecard
 from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
+from src.ui import apply_global_styles, style_plotly
 
 st.set_page_config(layout="wide")
+apply_global_styles()
 st.title("📊 Vendor Scorecards")
 st.info(
     "⚡ Synthetic dataset — evidence-driven readiness model — example system landscape labels. " + DISCLAIMER,
@@ -50,4 +52,5 @@ if not vendors.empty:
         hover_data=["vendor", "service", "open_critical"],
         title="Actual vs SLA",
     )
+    style_plotly(fig)
     st.plotly_chart(fig, use_container_width=True)

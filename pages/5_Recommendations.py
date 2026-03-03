@@ -26,8 +26,10 @@ from src.recommendations import schema as rec_schema
 from src.recommendations import service as rec_service
 from src.recommendations.gemini import call_gemini_stream, parse_and_validate
 from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
+from src.ui import apply_global_styles
 
 st.set_page_config(layout="wide")
+apply_global_styles()
 st.title("🧠 Recommendations")
 st.caption("Gemini-powered (falls back to heuristic if key is unavailable)")
 
