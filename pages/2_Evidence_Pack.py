@@ -4,13 +4,7 @@ import streamlit as st
 
 from src.data import ensure_data_and_load
 from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
-from src.ui import apply_global_styles
-try:
-    from src.ui import render_kpi_card
-except Exception:
-    def render_kpi_card(title, value, *_, **__):
-        cols = st.columns(1)
-        cols[0].metric(title, value)
+from src.ui import apply_global_styles, render_kpi_card
 
 st.set_page_config(layout="wide")
 apply_global_styles()
