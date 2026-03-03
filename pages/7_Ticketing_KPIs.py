@@ -9,7 +9,7 @@ import streamlit as st
 
 from src.data import ensure_data_and_load
 from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER, THRESHOLDS
-from src.ui import STATUS_COLORS, apply_global_styles, style_plotly
+from src.ui import STATUS_COLORS, apply_global_styles, style_plotly, render_kpi_card
 
 st.set_page_config(layout="wide")
 apply_global_styles()
@@ -93,20 +93,10 @@ if "offline_fallback_activations" in tkt.columns:
 total_denied = int(tkt["denied_entries"].fillna(0).sum()) if "denied_entries" in tkt.columns else 0
 
 c1, c2, c3, c4 = st.columns(4)
-c1.metric(
-    "Anomaly Windows",
-    total_anomalies,
-    delta="⚠️ Review" if total_anomalies > 0 else "OK",
-    delta_color="inverse" if total_anomalies > 0 else "normal",
-)
-c2.metric(
-    "Min Scan Success Rate",
-    f"{min_sr:.1%}" if min_sr is not None else "N/A",
-    delta="⚠️ CRIT" if min_sr is not None and min_sr < crit_sr else ("WARN" if min_sr is not None and min_sr < warn_sr else "OK"),
-    delta_color="inverse" if min_sr is not None and min_sr < warn_sr else "normal",
-)
-c3.metric("Offline Fallback Activations", total_offline)
-c4.metric("Total Denied Entries", total_denied)
+render_kpi_card("Anomaly Windows", total_anomalies, icon="alert", color="#fff4f4")
+render_kpi_card("Min Scan Success Rate", (f"{min_sr:.1%}" if min_sr is not None else "N/A"), icon=None, color="#eef6ff")
+render_kpi_card("Offline Fallback Activations", total_offline, icon="alert", color="#eef6ff")
+render_kpi_card("Total Denied Entries", total_denied, icon=None, color="#fff7f0")
 
 st.divider()
 

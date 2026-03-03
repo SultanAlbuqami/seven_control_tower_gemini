@@ -11,7 +11,7 @@ import streamlit as st
 from src.data import ensure_data_and_load
 from src.metrics import compute_ot_mean_ack_minutes
 from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER, THRESHOLDS
-from src.ui import SEVERITY_COLORS, apply_global_styles, style_plotly
+from src.ui import SEVERITY_COLORS, apply_global_styles, style_plotly, render_kpi_card
 
 st.set_page_config(layout="wide")
 apply_global_styles()
@@ -76,24 +76,10 @@ open_events = int((~cleared_mask).sum())
 mean_ack = compute_ot_mean_ack_minutes(ot)
 
 c1, c2, c3, c4 = st.columns(4)
-c1.metric(
-    "Unacked Sev-1",
-    unacked_sev1,
-    delta=f"{'⚠️ ACTION' if unacked_sev1 > THRESHOLDS['ot_unacked_sev1_warn'] else 'OK'}",
-    delta_color="inverse",
-)
-c2.metric(
-    "Unacked Sev-2",
-    unacked_sev2,
-    delta=f"{'⚠️ WARN' if unacked_sev2 > THRESHOLDS['ot_unacked_sev2_warn'] else 'OK'}",
-    delta_color="inverse",
-)
-c3.metric("Open (not cleared)", open_events)
-c4.metric(
-    "Mean Ack Time (min)",
-    f"{mean_ack:.1f}" if mean_ack is not None else "N/A",
-    help="Mean time from event to acknowledgement, across all acked events",
-)
+render_kpi_card("Unacked Sev-1", unacked_sev1, icon="alert", color="#fff4f4", delta=("⚠️ ACTION" if unacked_sev1 > THRESHOLDS["ot_unacked_sev1_warn"] else "OK"))
+render_kpi_card("Unacked Sev-2", unacked_sev2, icon="alert", color="#fff7e6", delta=("⚠️ WARN" if unacked_sev2 > THRESHOLDS["ot_unacked_sev2_warn"] else "OK"))
+render_kpi_card("Open (not cleared)", open_events, icon="alert", color="#eef6ff")
+render_kpi_card("Mean Ack Time (min)", f"{mean_ack:.1f}" if mean_ack is not None else "N/A", icon=None, color="#eef6ff")
 
 st.divider()
 

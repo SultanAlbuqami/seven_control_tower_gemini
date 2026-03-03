@@ -4,7 +4,7 @@ import streamlit as st
 
 from src.data import ensure_data_and_load
 from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
-from src.ui import apply_global_styles
+from src.ui import apply_global_styles, render_kpi_card
 
 st.set_page_config(layout="wide")
 apply_global_styles()
@@ -48,9 +48,9 @@ missing = int((filtered["status"] == "MISSING").sum()) if total else 0
 complete = total - missing
 
 a, b, c = st.columns(3)
-a.metric("Evidence items", total)
-b.metric("Complete", complete)
-c.metric("Missing", missing)
+render_kpi_card("Evidence items", total, icon="doc", color="#eef6ff")
+render_kpi_card("Complete", complete, icon="check", color="#effff4")
+render_kpi_card("Missing", missing, icon="alert", color="#fff4f4")
 
 if total:
     st.progress(complete / total)

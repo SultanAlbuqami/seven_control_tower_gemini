@@ -8,7 +8,7 @@ import streamlit as st
 
 from src.seed import ensure_data_present
 from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
-from src.ui import apply_global_styles, render_color_legend
+from src.ui import apply_global_styles, render_color_legend, render_theme_settings
 
 st.set_page_config(
     page_title="Day-One Operations Readiness Control Tower",
@@ -31,7 +31,8 @@ badge_cols = st.columns(len(CORE_BADGE_CATEGORIES))
 for col, cat in zip(badge_cols, CORE_BADGE_CATEGORIES):
     col.caption(f"**{cat.badge_label}**")
 
-# Legend for color meanings
+# Theme settings (sidebar) and Legend for color meanings
+render_theme_settings()
 render_color_legend()
 
 st.divider()

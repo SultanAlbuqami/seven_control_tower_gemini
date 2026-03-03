@@ -6,7 +6,7 @@ import streamlit as st
 from src.data import ensure_data_and_load
 from src.metrics import compute_mtta_minutes, compute_mttr_minutes, readiness_score, vendor_scorecard
 from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
-from src.ui import SEVERITY_COLORS, apply_global_styles, style_plotly
+from src.ui import SEVERITY_COLORS, apply_global_styles, style_plotly, render_kpi_card
 
 st.set_page_config(layout="wide")
 apply_global_styles()
@@ -39,10 +39,10 @@ mtta = compute_mtta_minutes(data.incidents)
 mttr = compute_mttr_minutes(data.incidents)
 
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Services with RED gates", int((data.readiness["status"] == "RED").sum()))
-c2.metric("Missing evidence items", int(len(missing_evd)))
-c3.metric("Open Sev-1/2 incidents", int(len(sev12)))
-c4.metric("Vendor breach signals", int((vs["breach_count"] > 0).sum()))
+render_kpi_card("Services with RED gates", int((data.readiness["status"] == "RED").sum()), icon="alert", color="#ffe9e9")
+render_kpi_card("Missing evidence items", int(len(missing_evd)), icon="doc", color="#fff7e6")
+render_kpi_card("Open Sev-1/2 incidents", int(len(sev12)), icon="alert", color="#ffe9e9")
+render_kpi_card("Vendor breach signals", int((vs["breach_count"] > 0).sum()), icon="doc", color="#eef6ff")
 
 st.divider()
 

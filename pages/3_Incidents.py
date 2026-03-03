@@ -6,7 +6,7 @@ import streamlit as st
 from src.data import ensure_data_and_load
 from src.metrics import compute_mtta_minutes, compute_mttr_minutes
 from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
-from src.ui import SEVERITY_COLORS, apply_global_styles, style_plotly
+from src.ui import SEVERITY_COLORS, apply_global_styles, style_plotly, render_kpi_card
 
 st.set_page_config(layout="wide")
 apply_global_styles()
@@ -48,9 +48,9 @@ mtta = compute_mtta_minutes(inc)
 mttr = compute_mttr_minutes(inc)
 
 k1, k2, k3 = st.columns(3)
-k1.metric("Incidents", len(inc))
-k2.metric("MTTA (min)", "-" if mtta is None else f"{mtta:.1f}")
-k3.metric("MTTR (min)", "-" if mttr is None else f"{mttr:.1f}")
+render_kpi_card("Incidents", len(inc), icon="alert", color="#fff4f4")
+render_kpi_card("MTTA (min)", "-" if mtta is None else f"{mtta:.1f}", icon=None, color="#eef6ff")
+render_kpi_card("MTTR (min)", "-" if mttr is None else f"{mttr:.1f}", icon=None, color="#eef6ff")
 
 st.divider()
 st.subheader("Opened incidents distribution")
