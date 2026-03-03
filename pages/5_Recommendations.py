@@ -1,4 +1,4 @@
-"""Page 5 — Live Recommendations (Gemini + heuristic fallback).
+"""Page 5 — Live Recommendations (Groq + heuristic fallback).
 
 Key design decisions:
 - service.recommend() never raises; fallback is always available.
@@ -24,14 +24,14 @@ from src.metrics import (
 )
 from src.recommendations import schema as rec_schema
 from src.recommendations import service as rec_service
-from src.recommendations.gemini import call_gemini_stream, parse_and_validate
+from src.recommendations.groq_adapter import call_groq_stream, parse_and_validate
 from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
 from src.ui import apply_global_styles
 
 st.set_page_config(layout="wide")
 apply_global_styles()
 st.title("🧠 Recommendations")
-st.caption("Gemini-powered (falls back to heuristic if key is unavailable)")
+st.caption("Groq-powered (falls back to heuristic if key is unavailable)")
 
 # ── Demo mode banner ──────────────────────────────────────────────────────────
 st.info(
@@ -49,13 +49,13 @@ st.divider()
 
 # ── Secret / key handling ─────────────────────────────────────────────────────
 def _resolve_api_key() -> str | None:
-    """Resolve GEMINI_API_KEY without ever echoing the value to the UI."""
+    """Resolve GROQ_API_KEY without ever echoing the value to the UI."""
     try:
-        if "GEMINI_API_KEY" in st.secrets:
-            return str(st.secrets["GEMINI_API_KEY"]).strip() or None
+        if "GROQ_API_KEY" in st.secrets:
+            return str(st.secrets["GROQ_API_KEY"]).strip() or None
     except Exception:
         pass
-    return os.environ.get("GEMINI_API_KEY", "").strip() or None
+    return os.environ.get("GROQ_API_KEY", "").strip() or None
 
 
 api_key = _resolve_api_key()
@@ -69,15 +69,15 @@ with st.sidebar:
             "No key found. Paste below for this session (not saved to disk).",
             icon="🔑",
         )
-        session_key = st.text_input("GEMINI_API_KEY (session only)", type="password", key="gemini_session_key")
+        session_key = st.text_input("GROQ_API_KEY (session only)", type="password", key="groq_session_key")
         if session_key:
-            os.environ["GEMINI_API_KEY"] = session_key.strip()
+            os.environ["GROQ_API_KEY"] = session_key.strip()
             api_key = session_key.strip()
 
     st.subheader("Model settings")
     model = st.selectbox(
         "Model",
-        ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.5-pro"],
+        ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it"],
         index=0,
     )
     temperature = st.slider("Temperature", 0.0, 1.0, 0.2, 0.05)
@@ -154,15 +154,15 @@ if not run:
 rec_dict: dict[str, Any] | None = None
 warning_msg: str | None = None
 
-# --- Attempt Gemini if key present and streaming requested ---
+# --- Attempt Groq if key present and streaming requested ---
 if api_key and use_stream:
     st.subheader("Raw output (streaming…)")
     placeholder = st.empty()
     raw_text = ""
-    gemini_ok = False
+    groq_ok = False
 
     try:
-        for chunk in call_gemini_stream(
+        for chunk in call_groq_stream(
             snapshot=snapshot,
             api_key=api_key,
             model=model,
@@ -171,25 +171,25 @@ if api_key and use_stream:
         ):
             raw_text += chunk
             placeholder.markdown(raw_text)
-        gemini_ok = True
+        groq_ok = True
     except Exception as exc:
         st.warning(
-            f"Gemini streaming unavailable ({type(exc).__name__}). "
+            f"Groq streaming unavailable ({type(exc).__name__}). "
             "Switching to heuristic recommendations.",
             icon="⚠️",
         )
 
-    if gemini_ok:
+    if groq_ok:
         rec_dict = parse_and_validate(raw_text)
         if rec_dict is None:
             st.warning(
-                "Gemini returned output that could not be parsed. "
+                "Groq returned output that could not be parsed. "
                 "Showing heuristic recommendations instead.",
                 icon="⚠️",
             )
 
 elif api_key and not use_stream:
-    with st.spinner("Calling Gemini…"):
+    with st.spinner("Calling Groq…"):
         rec_dict, warning_msg = rec_service.recommend(
             snapshot=snapshot,
             api_key=api_key,

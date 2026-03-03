@@ -7,10 +7,10 @@ A production-ready Streamlit demo for Day-One opening readiness, featuring:
 - **Vendor scorecards** — SLA compliance and breach visibility
 - **OT Events monitor** — BMS / Access Control / CCTV alarm unacked tracking
 - **Ticketing KPIs** — gate scan success rate, QR latency p95, throughput anomaly detection
-- **Live AI recommendations** — Gemini-powered (with heuristic offline fallback)
+- **Live AI recommendations** — Groq-powered (with heuristic offline fallback)
 
 > ⚡ Synthetic dataset — evidence-driven readiness model — example system landscape labels  
-> 🔑 Works fully offline without a Gemini API key (heuristic mode)
+> 🔑 Works fully offline without a Groq API key (heuristic mode)
 
 ---
 
@@ -59,16 +59,16 @@ pip install -r requirements.txt
 python -m src.seed
 ```
 
-### 4. Set the Gemini API key (optional — app works offline without it)
+### 4. Set the Groq API key (optional — app works offline without it)
 
 **Option A — environment variable (recommended):**
 ```powershell
 # Windows PowerShell
-$env:GEMINI_API_KEY="YOUR_KEY_HERE"
+$env:GROQ_API_KEY="YOUR_KEY_HERE"
 ```
 ```bash
 # WSL / Linux / macOS
-export GEMINI_API_KEY="YOUR_KEY_HERE"
+export GROQ_API_KEY="YOUR_KEY_HERE"
 ```
 
 **Option B — Streamlit secrets (local only, never commit):**
@@ -176,7 +176,7 @@ pages/
   2_Evidence_Pack.py            # Evidence chase list
   3_Incidents.py                # MTTA/MTTR analysis
   4_Vendor_Scorecards.py        # SLA compliance
-  5_Recommendations.py          # Gemini + fallback (OT + ticketing signals)
+  5_Recommendations.py          # Groq + fallback (OT + ticketing signals)
   6_OT_Events.py                # BMS/Access Control/CCTV alarm monitor
   7_Ticketing_KPIs.py           # Gate scan success, QR latency, throughput
 src/
@@ -185,12 +185,12 @@ src/
   metrics.py                    # MTTA/MTTR, readiness, vendor, OT, ticketing
   seed.py                       # Deterministic demo data generator (8 datasets)
   domain/constants.py           # Gate definitions, KPI targets
-  ai/gemini_recommender.py      # Gemini SDK adapter (streaming)
+  ai/groq_recommender.py        # Groq SDK adapter (streaming)
   recommendations/
     schema.py                   # JSON schema + stdlib validation + is_valid()
     heuristic.py                # Offline deterministic recommender
-    gemini.py                   # Gemini call + JSON parse + repair
-    service.py                  # Public entry point (Gemini → fallback)
+    groq_adapter.py             # Groq call + JSON parse + repair
+    service.py                  # Public entry point (Groq → fallback)
   utils/json_utils.py           # Robust JSON extraction from LLM output
 tests/
   test_metrics.py
@@ -210,7 +210,7 @@ tests/
 pytest -q
 ```
 
-Tests run fully offline — Gemini is mocked. No API key required.
+Tests run fully offline — Groq is mocked. No API key required.
 
 ```bash
 # With coverage (optional)
@@ -239,7 +239,7 @@ Output: `seven_control_tower_gemini_demo.zip`
 
 ## Security Notes
 
-- API keys are read from `GEMINI_API_KEY` env var or `.streamlit/secrets.toml` (excluded from git).
+- API keys are read from `GROQ_API_KEY` env var or `.streamlit/secrets.toml` (excluded from git).
 - No key is ever printed to logs or echoed in the UI.
 - Session-paste input in the sidebar is held in memory only; never written to disk.
 - `.gitignore` excludes `.env`, `secrets.toml`, `evidence/`, and `*.log`.
@@ -251,8 +251,8 @@ Output: `seven_control_tower_gemini_demo.zip`
 | Problem | Fix |
 |---|---|
 | `FileNotFoundError: Missing data file` | Run `python -m src.seed` |
-| `ModuleNotFoundError: google.genai` | Run `pip install -r requirements.txt` |
-| Recommendations show "offline mode" | Set `GEMINI_API_KEY` env var or use sidebar paste |
+| `ModuleNotFoundError: groq` | Run `pip install -r requirements.txt` |
+| Recommendations show "offline mode" | Set `GROQ_API_KEY` env var or use sidebar paste |
 | Port 8501 in use | `streamlit run app.py --server.port 8502` |
 | PowerShell execution policy error | `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser` |
 | Streamlit not found after venv | `.\.venv\Scripts\Activate.ps1` then retry |
@@ -269,15 +269,15 @@ Output: `seven_control_tower_gemini_demo.zip`
 - 2 new pages: OT Events monitor (page 6), Ticketing KPIs (page 7)
 - Landscape badge row on every page
 - Recommendations schema extended: `ot_signals`, `ticketing_signals`, `incident_improvements`, `vendor_flags`
-- Gemini prompt updated for strict JSON with new schema keys
+- Groq prompt updated for strict JSON with new schema keys
 - 2 new test files (61 tests total, all green)
 
 ### v1.0.0 — 2026-03-03
 - Initial production-quality release
 - Multi-page Streamlit app with 6 pages
 - Deterministic data seed (6 services, 5 gates, incidents, vendors, KPI time series)
-- `src/recommendations/` package: schema, heuristic, gemini adapter, service layer
-- Gemini streaming + one-shot modes with schema validation + repair
+- `src/recommendations/` package: schema, heuristic, groq adapter, service layer
+- Groq streaming + one-shot modes with schema validation + repair
 - Heuristic offline fallback (no API key required)
 - 5 test files: metrics, json_utils, schema, heuristic, integration (all mocked)
 - GitHub Actions CI (Python 3.11, 3.12)

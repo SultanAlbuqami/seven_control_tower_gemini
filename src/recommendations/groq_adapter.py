@@ -1,6 +1,6 @@
-"""Gemini API adapter for recommendations.
+"""Groq API adapter for recommendations.
 
-Thin wrapper around src.ai.gemini_recommender with:
+Thin wrapper around src.ai.groq_recommender with:
 - streaming support
 - JSON extraction + schema validation
 - single repair attempt on invalid JSON
@@ -11,26 +11,26 @@ import json
 import logging
 from typing import Any, Generator
 
-from src.ai.gemini_recommender import GeminiRecommender
+from src.ai.groq_recommender import GroqRecommender
 from src.recommendations.schema import validate
 from src.utils.json_utils import extract_json
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL = "gemini-2.0-flash"
+_DEFAULT_MODEL = "llama-3.3-70b-versatile"
 _DEFAULT_TEMPERATURE = 0.2
 _DEFAULT_MAX_TOKENS = 1536
 
 
-def call_gemini_stream(
+def call_groq_stream(
     snapshot: dict[str, Any],
     api_key: str,
     model: str = _DEFAULT_MODEL,
     temperature: float = _DEFAULT_TEMPERATURE,
     max_output_tokens: int = _DEFAULT_MAX_TOKENS,
 ) -> Generator[str, None, None]:
-    """Yield raw text chunks from a streaming Gemini call."""
-    rec = GeminiRecommender(
+    """Yield raw text chunks from a streaming Groq call."""
+    rec = GroqRecommender(
         api_key=api_key,
         model=model,
         temperature=temperature,
@@ -39,15 +39,15 @@ def call_gemini_stream(
     yield from rec.recommend_stream(snapshot)
 
 
-def call_gemini_once(
+def call_groq_once(
     snapshot: dict[str, Any],
     api_key: str,
     model: str = _DEFAULT_MODEL,
     temperature: float = _DEFAULT_TEMPERATURE,
     max_output_tokens: int = _DEFAULT_MAX_TOKENS,
 ) -> str:
-    """Return full text from a single Gemini call."""
-    rec = GeminiRecommender(
+    """Return full text from a single Groq call."""
+    rec = GroqRecommender(
         api_key=api_key,
         model=model,
         temperature=temperature,
@@ -57,14 +57,14 @@ def call_gemini_once(
 
 
 def parse_and_validate(raw_text: str) -> dict[str, Any] | None:
-    """Extract + validate JSON from raw Gemini text.
+    """Extract + validate JSON from raw Groq text.
 
     Returns the dict if valid, None if extraction or validation fails after
     one repair attempt.
     """
     obj = extract_json(raw_text)
     if obj is None:
-        logger.warning("gemini: could not extract JSON from response")
+        logger.warning("groq: could not extract JSON from response")
         return None
 
     errors = validate(obj)
@@ -72,7 +72,7 @@ def parse_and_validate(raw_text: str) -> dict[str, Any] | None:
         return obj
 
     # --- single repair attempt: strip trailing commas / common LLM artifacts ---
-    logger.warning("gemini: invalid JSON schema (%s); attempting repair", errors)
+    logger.warning("groq: invalid JSON schema (%s); attempting repair", errors)
     try:
         # Re-serialise + re-parse to canonicalise
         repaired_text = json.dumps(obj)
@@ -82,5 +82,5 @@ def parse_and_validate(raw_text: str) -> dict[str, Any] | None:
     except Exception:
         pass
 
-    logger.warning("gemini: repair failed; falling back to heuristic")
+    logger.warning("groq: repair failed; falling back to heuristic")
     return None

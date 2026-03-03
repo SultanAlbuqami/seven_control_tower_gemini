@@ -16,7 +16,7 @@ if [[ ! -f "./data/services.csv" ]]; then
 fi
 
 if [[ -n "$KEY" ]]; then
-  export GEMINI_API_KEY="$KEY"
+  export GROQ_API_KEY="$KEY"
 fi
 
 streamlit run app.py

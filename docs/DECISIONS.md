@@ -4,13 +4,13 @@
 
 ---
 
-## D-001 · Recommendation engine split (schema / heuristic / gemini / service)
+## D-001 · Recommendation engine split (schema / heuristic / groq / service)
 
 **Decision**: Wrap all recommendation logic inside `src/recommendations/` with four clear layers:
 - `schema.py` — canonical JSON schema + stdlib validation (no Pydantic dependency)
 - `heuristic.py` — deterministic offline fallback producing valid schema output
-- `gemini.py` — thin adapter over `google-genai` SDK with streaming support
-- `service.py` — public entry point; tries Gemini first, falls back automatically
+- `groq_adapter.py` — thin adapter over Groq SDK with streaming support
+- `service.py` — public entry point; tries Groq first, falls back automatically
 
 **Why**: Separation of concerns; fallback is unit-testable in isolation; UI is decoupled from API availability.
 
@@ -26,7 +26,7 @@
 
 ## D-003 · API key handling
 
-**Decision**: Key lookup order — (1) `st.secrets["GEMINI_API_KEY"]`, (2) `os.environ["GEMINI_API_KEY"]`. Session-in-browser input is also supported for demos but explicitly not written to disk.
+**Decision**: Key lookup order — (1) `st.secrets["GROQ_API_KEY"]`, (2) `os.environ["GROQ_API_KEY"]`. Session-in-browser input is also supported for demos but explicitly not written to disk.
 
 **Safe default**: If key absent → heuristic fallback activates. No crash.
 
@@ -52,7 +52,7 @@
 
 ## D-007 · GitHub Actions CI
 
-**Decision**: CI runs `pytest -q` with no GEMINI_API_KEY; Gemini is fully mocked. No secrets required in the runner environment.
+**Decision**: CI runs `pytest -q` with no GROQ_API_KEY; Groq is fully mocked. No secrets required in the runner environment.
 
 ---
 
@@ -98,7 +98,7 @@
 
 **Decision**: Add four new required keys to the schema: `ot_signals`, `ticketing_signals`, `incident_improvements`, `vendor_flags`.
 
-**Why**: Both the heuristic and Gemini paths must always produce these fields so the UI can unconditionally render them. Making them required (not optional) prevents silent omissions from Gemini and simplifies validation.
+**Why**: Both the heuristic and Groq paths must always produce these fields so the UI can unconditionally render them. Making them required (not optional) prevents silent omissions from Groq and simplifies validation.
 
 **Safe default**: Each key defaults to a single-item list with a "nominal" or "no issues detected" message when no signal conditions are triggered.
 

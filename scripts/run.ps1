@@ -17,7 +17,7 @@ if (-not (Test-Path ".\data\services.csv")) {
 }
 
 if ($Key -ne "") {
-  $env:GEMINI_API_KEY = $Key
+  $env:GROQ_API_KEY = $Key
 }
 
 streamlit run app.py

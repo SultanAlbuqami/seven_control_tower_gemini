@@ -1,6 +1,6 @@
-"""Integration tests for src/recommendations/service.py with mocked Gemini.
+"""Integration tests for src/recommendations/service.py with mocked Groq.
 
-Gemini SDK is fully mocked — no network calls are made.
+Groq SDK is fully mocked — no network calls are made.
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def _minimal_snapshot() -> dict:
     }
 
 
-def _valid_gemini_json() -> str:
+def _valid_groq_json() -> str:
     return json.dumps({
         "executive_summary": "Mocked executive summary",
         "top_risks": [
@@ -60,7 +60,7 @@ def test_no_key_returns_heuristic():
     with patch.dict("os.environ", {}, clear=False):
         # Ensure env var is absent for this test
         import os
-        os.environ.pop("GEMINI_API_KEY", None)
+        os.environ.pop("GROQ_API_KEY", None)
         result, warning = rec_service.recommend(_minimal_snapshot(), api_key=None)
 
     assert is_valid(result), "Heuristic fallback must produce schema-valid output"
@@ -68,28 +68,28 @@ def test_no_key_returns_heuristic():
     assert "offline" in warning.lower() or "heuristic" in warning.lower()
 
 
-# ── valid Gemini response ─────────────────────────────────────────────────────
+# ── valid Groq response ──────────────────────────────────────────────────────
 
-def test_valid_gemini_response_returned():
-    """Mock Gemini returning valid JSON → use it directly."""
-    valid_json = _valid_gemini_json()
+def test_valid_groq_response_returned():
+    """Mock Groq returning valid JSON → use it directly."""
+    valid_json = _valid_groq_json()
 
-    with patch("src.recommendations.service._gemini.call_gemini_once", return_value=valid_json):
+    with patch("src.recommendations.service._groq.call_groq_once", return_value=valid_json):
         result, warning = rec_service.recommend(
             _minimal_snapshot(),
             api_key="fake-api-key",
         )
 
     assert is_valid(result), f"Expected valid schema, got: {result}"
-    assert warning is None, "No warning expected when Gemini succeeds"
+    assert warning is None, "No warning expected when Groq succeeds"
     assert result["executive_summary"] == "Mocked executive summary"
 
 
-# ── invalid Gemini JSON → fallback ────────────────────────────────────────────
+# ── invalid Groq JSON → fallback ─────────────────────────────────────────────
 
-def test_invalid_gemini_json_triggers_fallback():
-    """Mock Gemini returning unparseable garbage → heuristic fallback."""
-    with patch("src.recommendations.service._gemini.call_gemini_once", return_value="not valid json at all {{{{"):
+def test_invalid_groq_json_triggers_fallback():
+    """Mock Groq returning unparseable garbage → heuristic fallback."""
+    with patch("src.recommendations.service._groq.call_groq_once", return_value="not valid json at all {{{{"):
         result, warning = rec_service.recommend(
             _minimal_snapshot(),
             api_key="fake-api-key",
@@ -99,13 +99,13 @@ def test_invalid_gemini_json_triggers_fallback():
     assert warning is not None, "Warning must be set when fallback is used"
 
 
-# ── schema-invalid Gemini JSON → repair attempt → fallback ───────────────────
+# ── schema-invalid Groq JSON → repair attempt → fallback ────────────────────
 
-def test_schema_invalid_gemini_json_triggers_fallback():
-    """Mock Gemini returning valid JSON but wrong schema → parse_and_validate returns None → fallback."""
+def test_schema_invalid_groq_json_triggers_fallback():
+    """Mock Groq returning valid JSON but wrong schema → parse_and_validate returns None → fallback."""
     bad_schema = json.dumps({"executive_summary": "Missing all other required fields"})
 
-    with patch("src.recommendations.service._gemini.call_gemini_once", return_value=bad_schema):
+    with patch("src.recommendations.service._groq.call_groq_once", return_value=bad_schema):
         result, warning = rec_service.recommend(
             _minimal_snapshot(),
             api_key="fake-api-key",
@@ -115,12 +115,12 @@ def test_schema_invalid_gemini_json_triggers_fallback():
     assert warning is not None
 
 
-# ── Gemini API exception → fallback ──────────────────────────────────────────
+# ── Groq API exception → fallback ────────────────────────────────────────────
 
-def test_gemini_api_exception_triggers_fallback():
-    """Mock Gemini raising an exception → graceful fallback."""
+def test_groq_api_exception_triggers_fallback():
+    """Mock Groq raising an exception → graceful fallback."""
     with patch(
-        "src.recommendations.service._gemini.call_gemini_once",
+        "src.recommendations.service._groq.call_groq_once",
         side_effect=RuntimeError("Simulated network error"),
     ):
         result, warning = rec_service.recommend(
@@ -137,7 +137,7 @@ def test_gemini_api_exception_triggers_fallback():
 def test_service_never_raises_on_bad_key():
     """Even with garbage key + mocked exception, service must not raise."""
     with patch(
-        "src.recommendations.service._gemini.call_gemini_once",
+        "src.recommendations.service._groq.call_groq_once",
         side_effect=Exception("Auth failed"),
     ):
         try:

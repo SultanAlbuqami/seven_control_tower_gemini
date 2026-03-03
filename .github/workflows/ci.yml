@@ -30,7 +30,7 @@ jobs:
         run: python -m src.seed
 
       - name: Run tests
-        # GEMINI_API_KEY intentionally absent — Gemini is mocked in tests
+        # GROQ_API_KEY intentionally absent — Groq is mocked in tests
         run: pytest -q --tb=short
 
       - name: Verify imports

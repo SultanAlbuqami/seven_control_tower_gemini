@@ -64,7 +64,7 @@ Use the pages in the left sidebar:
 | **Vendor Scorecards** | SLA compliance and breach visibility |
 | **OT Events** | BMS / Access Control / CCTV alarm monitor |
 | **Ticketing KPIs** | Gate scan success, QR latency, throughput |
-| **Recommendations** | Gemini-powered (or heuristic) actions for next 24 h / 7 d |
+| **Recommendations** | Groq-powered (or heuristic) actions for next 24 h / 7 d |
 """
 )
 

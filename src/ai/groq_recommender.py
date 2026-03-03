@@ -3,8 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable, Optional
 
-from google import genai
-from google.genai import types
+from groq import Groq
 
 
 @dataclass(frozen=True)
@@ -42,7 +41,7 @@ def _build_prompt(snapshot: dict[str, Any]) -> str:
     )
 
 
-class GeminiRecommender:
+class GroqRecommender:
     def __init__(self, api_key: str, model: str, temperature: float = 0.2, max_output_tokens: int = 1024):
         self.api_key = api_key
         self.model = model
@@ -50,33 +49,30 @@ class GeminiRecommender:
         self.max_output_tokens = max_output_tokens
 
     def recommend_stream(self, snapshot: dict[str, Any]) -> Iterable[str]:
-        """Yield text chunks."""
+        """Yield text chunks via Groq streaming."""
         prompt = _build_prompt(snapshot)
-        client = genai.Client(api_key=self.api_key)
-        cfg = types.GenerateContentConfig(
-            temperature=self.temperature,
-            max_output_tokens=self.max_output_tokens,
-        )
-        for chunk in client.models.generate_content_stream(
+        client = Groq(api_key=self.api_key)
+        stream = client.chat.completions.create(
             model=self.model,
-            contents=prompt,
-            config=cfg,
-        ):
-            # chunk.text is the simplest stable property in official examples
-            txt = getattr(chunk, "text", None)
+            messages=[{"role": "user", "content": prompt}],
+            temperature=self.temperature,
+            max_tokens=self.max_output_tokens,
+            stream=True,
+        )
+        for chunk in stream:
+            delta = chunk.choices[0].delta
+            txt = getattr(delta, "content", None)
             if txt:
                 yield txt
 
     def recommend_once(self, snapshot: dict[str, Any]) -> str:
         prompt = _build_prompt(snapshot)
-        client = genai.Client(api_key=self.api_key)
-        cfg = types.GenerateContentConfig(
-            temperature=self.temperature,
-            max_output_tokens=self.max_output_tokens,
-        )
-        resp = client.models.generate_content(
+        client = Groq(api_key=self.api_key)
+        resp = client.chat.completions.create(
             model=self.model,
-            contents=prompt,
-            config=cfg,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=self.temperature,
+            max_tokens=self.max_output_tokens,
+            stream=False,
         )
-        return getattr(resp, "text", "") or ""
+        return resp.choices[0].message.content or ""
