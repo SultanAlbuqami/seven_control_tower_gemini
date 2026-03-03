@@ -256,19 +256,16 @@ def apply_global_styles() -> None:
           }
           [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
           [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] li {
-            color: #ffffff !important;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+            color: #FFFFFF !important;
             line-height: 1.5;
           }
           [data-testid="stSidebar"] h1,
           [data-testid="stSidebar"] h2,
           [data-testid="stSidebar"] h3 {
-            color: #ffffff !important;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+            color: #FFFFFF !important;
           }
           [data-testid="stSidebar"] label {
-            color: #ffffff !important;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+            color: #FFFFFF !important;
           }
 
           /* Expanders */

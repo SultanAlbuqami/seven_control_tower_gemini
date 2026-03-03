@@ -42,6 +42,7 @@ def recommend(
     resolved_key = api_key or _get_api_key()
 
     if not resolved_key:
+        logger.warning("No API key found in environment or secrets. Falling back to heuristic.")
         return heuristic.recommend(snapshot), _FALLBACK_NOTE
 
     for attempt in range(2):
@@ -58,9 +59,9 @@ def recommend(
                 return parsed, None
             logger.warning("service: groq output invalid after repair; using heuristic")
         except Exception as exc:
-            logger.warning("service: groq attempt %s failed (%s)", attempt + 1, exc)
+            logger.warning("groq attempt %s failed (%s)", attempt + 1, exc)
 
-    logger.exception("service: groq all attempts failed; using heuristic")
+    logger.exception("groq all attempts failed; falling back")
     return heuristic.recommend(snapshot), _FALLBACK_NOTE
 
 
