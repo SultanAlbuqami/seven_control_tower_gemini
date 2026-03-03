@@ -337,6 +337,46 @@ def apply_global_styles() -> None:
               margin-bottom: 0.6rem;
             }}
           }}
+
+          .sidebar-author {{
+            margin-top: 1.5rem;
+            padding: 0.85rem 1rem;
+            border-radius: 14px;
+            border: 1px solid rgba(201, 141, 100, 0.28);
+            background: linear-gradient(
+              135deg,
+              rgba(201, 141, 100, 0.12) 0%,
+              rgba(140, 90, 55, 0.08) 100%
+            );
+            text-align: center;
+          }}
+
+          .sidebar-author .sa-name {{
+            display: block;
+            color: #E8D5BF !important;
+            font-size: 0.93rem;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            margin-bottom: 0.35rem;
+          }}
+
+          .sidebar-author .sa-line {{
+            display: block;
+            color: #A8B4C0 !important;
+            font-size: 0.78rem;
+            font-weight: 400;
+            line-height: 1.7;
+            letter-spacing: 0.01em;
+          }}
+
+          .sidebar-author .sa-divider {{
+            width: 2rem;
+            height: 2px;
+            background: rgba(201, 141, 100, 0.5);
+            border: none;
+            border-radius: 999px;
+            margin: 0.45rem auto 0.55rem;
+          }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -352,6 +392,17 @@ def render_sidebar(page_name: str) -> None:
         st.markdown("#### 3-minute interview demo")
         for index, step in enumerate(GUIDE_STEPS, start=1):
             st.markdown(f"{index}. {step}")
+        st.markdown(
+            """
+            <div class="sidebar-author">
+              <span class="sa-name">Eng. Sultan Albuqami</span>
+              <hr class="sa-divider" />
+              <span class="sa-line">&#128222;&nbsp; 0553112800</span>
+              <span class="sa-line">&#9993;&nbsp; sultan_mutep@hotmail.com</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 def render_page_header(page_name: str, description: str) -> None:
