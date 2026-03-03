@@ -20,6 +20,36 @@ SEVERITY_COLORS = {
 }
 
 
+# Brand palette + fonts
+BRAND = {
+  "primary": "#163475",
+  "accent": "#84a9ff",
+  "bg": "#fbfdff",
+  "muted": "#6b7280",
+}
+
+FONT_STACK = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial"
+
+
+def render_color_legend() -> None:
+  cols = st.columns(6)
+  labels = [
+    ("GREEN", "Services OK"),
+    ("AMBER", "Attention"),
+    ("RED", "Critical"),
+    ("OK", "Metric OK"),
+    ("WARN", "Metric Warn"),
+    ("CRIT", "Metric Crit"),
+  ]
+  for col, (k, txt) in zip(cols, labels):
+    col.markdown(
+      f"<div style='display:flex;align-items:center;gap:8px'>"
+      f"<div style='width:14px;height:14px;border-radius:4px;background:{STATUS_COLORS[k]};'></div>"
+      f"<div style='color:{BRAND['muted']};font-size:13px'>{txt}</div>"
+      f"</div>",
+      unsafe_allow_html=True,
+    )
+
 def readiness_scale() -> list[list[float | str]]:
   return [
     [0.00, "#e5e7eb"],
@@ -37,10 +67,18 @@ def apply_global_styles() -> None:
     st.markdown(
         """
         <style>
+          :root {
+            --brand-primary: %s;
+            --brand-accent: %s;
+            --brand-muted: %s;
+            --brand-bg: %s;
+          }
           .block-container {
             padding-top: 1.25rem;
             padding-bottom: 1.5rem;
             max-width: 1450px;
+            font-family: %s;
+            background: var(--brand-bg);
           }
           [data-testid="stMetric"] {
             border: 1px solid rgba(49, 51, 63, 0.15);
@@ -67,8 +105,8 @@ def apply_global_styles() -> None:
             border: 1px solid rgba(49, 51, 63, 0.2);
           }
           [data-baseweb="tab"][aria-selected="true"] {
-            background: #eef4ff;
-            border-color: #84a9ff;
+            background: var(--brand-accent);
+            border-color: var(--brand-accent);
           }
           [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
             line-height: 1.4;
@@ -77,14 +115,15 @@ def apply_global_styles() -> None:
             border-radius: 10px;
           }
         </style>
-        """,
+        """ % (BRAND["primary"], BRAND["accent"], BRAND["muted"], BRAND["bg"], FONT_STACK),
         unsafe_allow_html=True,
     )
 
 
 def style_plotly(fig: go.Figure, *, height: int = 360) -> go.Figure:
     fig.update_layout(
-        template="plotly_white",
+    template="plotly_white",
+    colorway=[STATUS_COLORS["RED"], STATUS_COLORS["AMBER"], STATUS_COLORS["GREEN"], BRAND["accent"]],
         height=height,
         margin=dict(l=14, r=14, t=56, b=16),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
