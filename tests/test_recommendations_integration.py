@@ -20,7 +20,7 @@ def _minimal_snapshot() -> dict:
     }
 
 
-def _valid_groq_json() -> str:
+def _valid_openai_json() -> str:
     return json.dumps(
         {
             "summary": {
@@ -89,7 +89,7 @@ def test_no_key_returns_heuristic() -> None:
     with patch.dict("os.environ", {}, clear=False):
         import os
 
-        os.environ.pop("GROQ_API_KEY", None)
+        os.environ.pop("OPENAI_API_KEY", None)
         result, warning, source = rec_service.recommend(_minimal_snapshot(), api_key=None)
 
     assert is_valid(result)
@@ -97,18 +97,18 @@ def test_no_key_returns_heuristic() -> None:
     assert source == "heuristic"
 
 
-def test_valid_groq_response_returned() -> None:
-    with patch("src.recommendations.service.groq_adapter.request_final_json", return_value=_valid_groq_json()):
+def test_valid_openai_response_returned() -> None:
+    with patch("src.recommendations.service.openai_adapter.request_final_json", return_value=_valid_openai_json()):
         result, warning, source = rec_service.recommend(_minimal_snapshot(), api_key="fake-api-key")
 
     assert is_valid(result)
     assert warning is None
-    assert source == "groq_final"
+    assert source == "openai_final"
     assert result["summary"]["headline"] == "Mocked final summary"
 
 
-def test_invalid_groq_json_triggers_fallback() -> None:
-    with patch("src.recommendations.service.groq_adapter.request_final_json", return_value="not valid json"):
+def test_invalid_openai_json_triggers_fallback() -> None:
+    with patch("src.recommendations.service.openai_adapter.request_final_json", return_value="not valid json"):
         result, warning, source = rec_service.recommend(_minimal_snapshot(), api_key="fake-api-key")
 
     assert is_valid(result)
@@ -116,7 +116,7 @@ def test_invalid_groq_json_triggers_fallback() -> None:
     assert source == "heuristic"
 
 
-def test_schema_invalid_groq_json_can_be_repaired() -> None:
+def test_schema_invalid_openai_json_can_be_repaired() -> None:
     legacy = json.dumps(
         {
             "executive_summary": "Legacy summary",
@@ -128,17 +128,17 @@ def test_schema_invalid_groq_json_can_be_repaired() -> None:
             "ticketing_signals": ["Ticketing issue"],
         }
     )
-    with patch("src.recommendations.service.groq_adapter.request_final_json", return_value=legacy):
+    with patch("src.recommendations.service.openai_adapter.request_final_json", return_value=legacy):
         result, warning, source = rec_service.recommend(_minimal_snapshot(), api_key="fake-api-key")
 
     assert is_valid(result)
     assert warning is None
-    assert source == "groq_final"
+    assert source == "openai_final"
 
 
-def test_groq_api_exception_triggers_fallback() -> None:
+def test_openai_api_exception_triggers_fallback() -> None:
     with patch(
-        "src.recommendations.service.groq_adapter.request_final_json",
+        "src.recommendations.service.openai_adapter.request_final_json",
         side_effect=RuntimeError("Simulated network error"),
     ):
         result, warning, source = rec_service.recommend(_minimal_snapshot(), api_key="fake-api-key")
@@ -150,7 +150,7 @@ def test_groq_api_exception_triggers_fallback() -> None:
 
 def test_service_never_raises_on_bad_key() -> None:
     with patch(
-        "src.recommendations.service.groq_adapter.request_final_json",
+        "src.recommendations.service.openai_adapter.request_final_json",
         side_effect=Exception("Auth failed"),
     ):
         try:
@@ -165,6 +165,6 @@ def test_stream_draft_preview_requires_key() -> None:
     with patch.dict("os.environ", {}, clear=False):
         import os
 
-        os.environ.pop("GROQ_API_KEY", None)
+        os.environ.pop("OPENAI_API_KEY", None)
         with pytest.raises(RuntimeError):
             list(rec_service.stream_draft_preview(_minimal_snapshot(), api_key=None))

@@ -252,3 +252,21 @@ Result:
 - `HEAD` = `9ede7f6`
 - `origin/main` = `9ede7f6`
 - `git status --short --branch` returned only `## main...origin/main`, which confirms no local file modifications
+
+## Phase 10 - Provider migration to OpenAI
+
+Command:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip uninstall -y groq
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip check
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+Result:
+
+- `groq 1.0.0` was removed from the repo-local `.venv`
+- `openai 2.24.0` was installed from `requirements.txt`
+- `No broken requirements found.`
+- `81 passed in 5.20s`

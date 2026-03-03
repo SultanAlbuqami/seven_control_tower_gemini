@@ -21,7 +21,7 @@ An interview-grade Streamlit demo for venue and destination operations readiness
 
 - Deterministic synthetic data is auto-generated on startup if any required CSV is missing.
 - The app works fully offline through a deterministic heuristic recommendations engine.
-- If a Groq key is available, the Recommendations page streams a fast Draft preview first and then renders the Final authoritative structured JSON.
+- If an OpenAI key is available, the Recommendations page streams a fast Draft preview first and then renders the Final authoritative structured JSON.
 - Only the Final authoritative JSON drives the structured panels and exports.
 
 ## Quickstart
@@ -58,18 +58,18 @@ The app normally handles this automatically through `ensure_data_present()`.
 
 The key lookup order is:
 
-1. `st.secrets["GROQ_API_KEY"]`
-2. `GROQ_API_KEY` environment variable
+1. `st.secrets["OPENAI_API_KEY"]`
+2. `OPENAI_API_KEY` environment variable
 3. Optional session-only paste in the Recommendations page
 
 ### Environment variable
 
 ```powershell
-$env:GROQ_API_KEY="your-groq-api-key"
+$env:OPENAI_API_KEY="your-openai-api-key"
 ```
 
 ```bash
-export GROQ_API_KEY="your-groq-api-key"
+export OPENAI_API_KEY="your-openai-api-key"
 ```
 
 ### Streamlit secrets
@@ -136,8 +136,8 @@ Each page includes a Data lineage section that surfaces the example source label
 
 ## Recommendations strategy
 
-- Draft / Preview: small Groq model, streamed text, non-authoritative
-- Final authoritative result: larger Groq model, strict JSON only
+- Draft / Preview: small OpenAI model, streamed text, non-authoritative
+- Final authoritative result: larger OpenAI model, strict JSON only
 - Validation: stdlib schema validation with one repair attempt
 - Failure path: deterministic heuristic fallback with the same schema
 
@@ -185,7 +185,7 @@ The pytest suite includes:
 
 - schema validation
 - heuristic fallback behavior
-- recommendations integration with mocked Groq calls
+- recommendations integration with mocked OpenAI calls
 - metrics tests
 - Streamlit page smoke tests
 - auto-seed regeneration checks
@@ -224,7 +224,7 @@ scripts/
 | Problem | Action |
 | --- | --- |
 | Missing CSV files | Run `python -m src.seed` or just open the app and let it auto-seed |
-| Recommendations run in heuristic mode | Set `GROQ_API_KEY` through env, Streamlit secrets, or the session-only field |
+| Recommendations run in heuristic mode | Set `OPENAI_API_KEY` through env, Streamlit secrets, or the session-only field |
 | Streamlit port is busy | Run `streamlit run app.py --server.port 8502` |
 | PowerShell blocks script activation | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` |
 | Packaging zip contains unwanted files | Re-run the packaging scripts from a clean working tree |
@@ -245,5 +245,5 @@ scripts/
 ### v2.0.0 - 2026-03-03
 
 - Added OT events and ticketing KPI datasets and pages
-- Added heuristic fallback recommendations and Groq integration
+- Added heuristic fallback recommendations and LLM integration
 - Added packaging scripts, CI, and initial evidence/decision docs

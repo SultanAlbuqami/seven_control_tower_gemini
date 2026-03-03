@@ -21,18 +21,18 @@ from src.ui import (
 
 def _resolve_api_key() -> str | None:
     try:
-        if "GROQ_API_KEY" in st.secrets:
-            secret_value = str(st.secrets["GROQ_API_KEY"]).strip()
+        if "OPENAI_API_KEY" in st.secrets:
+            secret_value = str(st.secrets["OPENAI_API_KEY"]).strip()
             if secret_value:
                 return secret_value
     except Exception:
         pass
 
-    env_value = os.environ.get("GROQ_API_KEY", "").strip()
+    env_value = os.environ.get("OPENAI_API_KEY", "").strip()
     if env_value:
         return env_value
 
-    session_value = str(st.session_state.get("groq_session_key", "")).strip()
+    session_value = str(st.session_state.get("openai_session_key", "")).strip()
     return session_value or None
 
 
@@ -57,7 +57,7 @@ def _render_signal_list(items: list[dict[str, Any]], primary_key: str) -> None:
 configure_page("Recommendations")
 render_page_header(
     "Recommendations",
-    "Generate a Draft preview from a fast model and then a Final authoritative recommendation set in strict JSON. The final JSON is the only structured output used by the page and exports.",
+    "Generate a Draft preview from a fast OpenAI model and then a Final authoritative recommendation set in strict JSON. The final JSON is the only structured output used by the page and exports.",
 )
 
 try:
@@ -73,19 +73,19 @@ with st.sidebar:
     st.markdown("#### Recommendation settings")
     st.caption("Key lookup order: Streamlit secrets, then environment variable, then the session-only field below.")
     st.text_input(
-        "Session-only GROQ_API_KEY",
-        key="groq_session_key",
+        "Session-only OPENAI_API_KEY",
+        key="openai_session_key",
         type="password",
         help="Stored in this browser session only and never written to disk.",
     )
     preview_model = st.selectbox(
         "Draft preview model",
-        ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"],
+        ["gpt-4.1-mini", "gpt-4.1"],
         index=0,
     )
     final_model = st.selectbox(
         "Final authoritative model",
-        ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
+        ["gpt-4.1", "gpt-4.1-mini"],
         index=0,
     )
 
@@ -179,7 +179,7 @@ if payload is None:
 render_section_header("Final authoritative recommendations", "This structured JSON is the only output used for panels and export.")
 render_status_badges(
     [
-        {"label": "Result source", "status": "OK" if st.session_state["recommendation_source"] == "groq_final" else "WARN"},
+        {"label": "Result source", "status": "OK" if st.session_state["recommendation_source"] == "openai_final" else "WARN"},
         {"label": "Overall posture", "status": payload["summary"]["status"]},
     ]
 )

@@ -3,14 +3,14 @@ from __future__ import annotations
 import logging
 from typing import Any, Generator
 
-from src.ai.groq_recommender import GroqRecommender
+from src.ai.openai_recommender import OpenAIRecommender
 from src.recommendations.schema import is_valid, repair_response
 from src.utils.json_utils import extract_json
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_PREVIEW_MODEL = "llama-3.1-8b-instant"
-DEFAULT_FINAL_MODEL = "llama-3.3-70b-versatile"
+DEFAULT_PREVIEW_MODEL = "gpt-4.1-mini"
+DEFAULT_FINAL_MODEL = "gpt-4.1"
 
 
 def stream_draft_preview(
@@ -21,7 +21,7 @@ def stream_draft_preview(
     temperature: float = 0.2,
     max_output_tokens: int = 420,
 ) -> Generator[str, None, None]:
-    recommender = GroqRecommender(
+    recommender = OpenAIRecommender(
         api_key=api_key,
         model=model,
         temperature=temperature,
@@ -38,7 +38,7 @@ def request_final_json(
     temperature: float = 0.1,
     max_output_tokens: int = 1600,
 ) -> str:
-    recommender = GroqRecommender(
+    recommender = OpenAIRecommender(
         api_key=api_key,
         model=model,
         temperature=temperature,
@@ -50,15 +50,15 @@ def request_final_json(
 def parse_and_validate(raw_text: str) -> dict[str, Any] | None:
     payload = extract_json(raw_text)
     if payload is None:
-        logger.warning("Groq final response did not contain extractable JSON.")
+        logger.warning("OpenAI final response did not contain extractable JSON.")
         return None
     if is_valid(payload):
         return payload
 
     repaired = repair_response(payload)
     if repaired is not None:
-        logger.warning("Groq response required one local repair pass before validation.")
+        logger.warning("OpenAI response required one local repair pass before validation.")
         return repaired
 
-    logger.warning("Groq response failed schema validation after one repair attempt.")
+    logger.warning("OpenAI response failed schema validation after one repair attempt.")
     return None

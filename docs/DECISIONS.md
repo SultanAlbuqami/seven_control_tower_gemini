@@ -2,7 +2,7 @@
 
 ## D-001 - Recommendation engine layering
 
-Decision: keep recommendation logic split across `schema.py`, `heuristic.py`, `groq_adapter.py`, `service.py`, and `snapshot.py`.
+Decision: keep recommendation logic split across `schema.py`, `heuristic.py`, `openai_adapter.py`, `service.py`, and `snapshot.py`.
 
 Why: the LLM path, the deterministic fallback path, and the snapshot aggregation path need to be testable in isolation.
 
@@ -16,8 +16,8 @@ Why: the response contract is small, deterministic, and already covered by tests
 
 Decision: resolve LLM credentials in this order:
 
-1. `st.secrets["GROQ_API_KEY"]`
-2. `GROQ_API_KEY` environment variable
+1. `st.secrets["OPENAI_API_KEY"]`
+2. `OPENAI_API_KEY` environment variable
 3. Optional session-only paste held in Streamlit session state
 
 Why: this matches the required security model while avoiding any writes to disk.
@@ -54,7 +54,7 @@ Why: the global Python installation on the workstation contains unrelated packag
 
 ## D-009 - Dual-model recommendation strategy
 
-Decision: use a small Groq model for the streamed Draft preview and a larger Groq model for the Final authoritative JSON.
+Decision: use a small OpenAI model for the streamed Draft preview and a larger OpenAI model for the Final authoritative JSON.
 
 Why: the preview improves perceived responsiveness, while the final pass preserves a strict structured contract.
 
@@ -135,3 +135,9 @@ Why: these layers materially strengthen the interview narrative for operational 
 Decision: add deterministic `wfm_roster.csv`, `parking_mobility.csv`, and `access_governance.csv` datasets, then expose them through a dedicated `Operations Dependencies` page and summary metrics.
 
 Why: workforce coverage, arrival pressure, and access governance are real launch dependencies; keeping them only in the system-landscape narrative would leave a visible gap in the control-tower demo.
+
+## D-023 - Provider migration to OpenAI
+
+Decision: replace the active recommendations provider with OpenAI and resolve credentials only from `OPENAI_API_KEY` sources.
+
+Why: the current operator wants to use an OpenAI key, and keeping a single active provider path avoids mixed configuration, stale UI labels, and ambiguous runtime behavior.

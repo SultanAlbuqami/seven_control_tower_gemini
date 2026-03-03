@@ -55,7 +55,7 @@ def test_recommendations_page_runs_offline() -> None:
     generate()
     import os
 
-    old_value = os.environ.pop("GROQ_API_KEY", None)
+    old_value = os.environ.pop("OPENAI_API_KEY", None)
     secrets_path = ROOT_DIR / ".streamlit" / "secrets.toml"
     backup_path = ROOT_DIR / ".streamlit" / "secrets.toml.offline-test"
     if secrets_path.exists():
@@ -72,4 +72,4 @@ def test_recommendations_page_runs_offline() -> None:
         if backup_path.exists():
             backup_path.replace(secrets_path)
         if old_value:
-            os.environ["GROQ_API_KEY"] = old_value
+            os.environ["OPENAI_API_KEY"] = old_value
