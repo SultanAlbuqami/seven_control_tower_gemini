@@ -1,270 +1,352 @@
-"""System Landscape Registry.
-
-Defines the TYPICAL destination/venue technology stack as example labels.
-
-DISCLAIMER: These are common example systems for large venues/destinations;
-the demo is source-agnostic and connectors can be swapped to match the
-actual environment.  All names are trademarks of their respective owners.
-"""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Final
+
+
+DISCLAIMER: Final[str] = (
+    "These are common example systems for large venues; the demo is source-agnostic "
+    "and connectors can be swapped to match the actual environment."
+)
+
+DEFAULT_STACK_NAME: Final[str] = "Typical Destination / Venue Stack"
 
 
 @dataclass(frozen=True)
-class SystemCategory:
+class LandscapeCategory:
+    slug: str
+    family: str
+    badge_label: str
     category: str
-    badge_label: str  # short label shown in UI badges
-    examples: list[str] = field(default_factory=list)
+    examples: tuple[str, ...]
+    contributions: tuple[str, ...]
+    trace_fields: tuple[str, ...]
+    id_rule: str
     optional: bool = False
 
 
-# ── Corporate / Enterprise Platforms ────────────────────────────────────────
-
-ITSM = SystemCategory(
-    category="ITSM / Service Management",
-    badge_label="ITSM",
-    examples=[
-        "ServiceNow (example)",
-        "Jira Service Management (example)",
-        "BMC Remedy (example)",
-        "Freshservice (example)",
-    ],
+ITSM_CMDB_LABELS: Final[tuple[str, ...]] = (
+    "ServiceNow (example)",
+    "Jira Service Management (example)",
+    "BMC Remedy (example)",
+    "Freshservice (example)",
 )
 
-CMDB = SystemCategory(
-    category="CMDB / Asset Management",
-    badge_label="CMDB",
-    examples=[
-        "ServiceNow CMDB (example)",
-        "Jira Assets (example)",
-    ],
+CMMS_EAM_LABELS: Final[tuple[str, ...]] = (
+    "IBM Maximo (example)",
+    "SAP PM (example)",
+    "Oracle EAM (example)",
 )
 
-CMMS = SystemCategory(
-    category="CMMS / EAM (Maintenance)",
-    badge_label="CMMS",
-    examples=[
-        "IBM Maximo (example)",
-        "SAP PM (example)",
-        "Oracle EAM (example)",
-    ],
+EDMS_LABELS: Final[tuple[str, ...]] = (
+    "SharePoint/M365 (example)",
+    "Generic EDMS (example)",
 )
 
-EDMS = SystemCategory(
-    category="EDMS / Document Control",
-    badge_label="EDMS",
-    examples=[
-        "SharePoint / M365 (example)",
-        "EDMS / Document Control (example)",
-    ],
+ERP_LABELS: Final[tuple[str, ...]] = (
+    "SAP S/4HANA (example)",
+    "Oracle ERP (example)",
 )
 
-ERP = SystemCategory(
-    category="ERP / Enterprise Apps",
-    badge_label="ERP",
-    examples=[
-        "SAP S/4HANA (example)",
-        "Oracle ERP (example)",
-    ],
-    optional=True,
+CRM_LABELS: Final[tuple[str, ...]] = (
+    "Microsoft Dynamics 365 (example)",
+    "Adobe Experience (example)",
+    "Sprinklr (example)",
 )
 
-CRM = SystemCategory(
-    category="Guest / CRM",
-    badge_label="CRM",
-    examples=[
-        "Microsoft Dynamics 365 (example)",
-        "Adobe Experience (example)",
-        "Sprinklr (example)",
-    ],
-    optional=True,
+OBSERVABILITY_LABELS: Final[tuple[str, ...]] = (
+    "Azure Monitor/Log Analytics (example)",
+    "Prometheus/Grafana (example)",
+    "Datadog (example)",
+    "New Relic (example)",
 )
 
-MONITORING = SystemCategory(
-    category="Observability / Monitoring",
-    badge_label="Monitoring",
-    examples=[
-        "Azure Monitor / Log Analytics (example)",
-        "Prometheus / Grafana (example)",
-        "Datadog (example)",
-        "New Relic (example)",
-    ],
+SIEM_LABELS: Final[tuple[str, ...]] = (
+    "Splunk (example)",
+    "Elastic/ELK (example)",
+    "Microsoft Sentinel (example)",
 )
 
-SIEM = SystemCategory(
-    category="Logging / SIEM",
-    badge_label="SIEM",
-    examples=[
-        "Splunk (example)",
-        "Elastic / ELK (example)",
-        "Microsoft Sentinel (example)",
-    ],
-    optional=True,
+OT_EVENT_FEED_LABELS: Final[tuple[str, ...]] = (
+    "BMS / Access Control / CCTV Event Feed (example)",
 )
 
-# ── Venue / OT & Visitor Systems ─────────────────────────────────────────────
-
-OT_EVENTS = SystemCategory(
-    category="OT Events Feed",
-    badge_label="OT",
-    examples=[
-        "BMS / Access Control / CCTV Event Feed (example)",
-    ],
+BMS_VENDOR_LABELS: Final[tuple[str, ...]] = (
+    "Honeywell (example)",
+    "Siemens (example)",
+    "Johnson Controls (example)",
+    "Schneider Electric (example)",
 )
 
-BMS = SystemCategory(
-    category="BMS / Facilities Vendors",
-    badge_label="BMS",
-    examples=[
-        "Honeywell (example)",
-        "Siemens (example)",
-        "Johnson Controls (example)",
-        "Schneider Electric (example)",
-    ],
-    optional=True,
+VMS_CCTV_LABELS: Final[tuple[str, ...]] = (
+    "Genetec (example)",
+    "Milestone (example)",
 )
 
-VMS = SystemCategory(
-    category="VMS / CCTV Platforms",
-    badge_label="VMS",
-    examples=[
-        "Genetec (example)",
-        "Milestone (example)",
-    ],
-    optional=True,
+ACCESS_CONTROL_LABELS: Final[tuple[str, ...]] = (
+    "HID (example)",
 )
 
-ACCESS_CONTROL = SystemCategory(
-    category="Access Control",
-    badge_label="Access",
-    examples=[
-        "HID (example)",
-    ],
-    optional=True,
+TICKETING_LABELS: Final[tuple[str, ...]] = (
+    "accesso Horizon (example)",
+    "Generic Ticketing/Gate Validation Platform (example)",
 )
 
-TICKETING = SystemCategory(
-    category="Ticketing & Gate Validation",
-    badge_label="Ticketing",
-    examples=[
-        "accesso Horizon (example)",
-        "Ticketing Platform / Gate Validation (generic example)",
-    ],
+POS_PAYMENTS_LABELS: Final[tuple[str, ...]] = (
+    "POS System + Payment Gateway Telemetry (example)",
 )
 
-POS = SystemCategory(
-    category="POS / Payments",
-    badge_label="POS",
-    examples=[
-        "POS System + Payment Gateway Telemetry (example)",
-    ],
-    optional=True,
+NETWORK_LABELS: Final[tuple[str, ...]] = (
+    "Network Monitoring Platform (example)",
 )
 
-NETWORK = SystemCategory(
-    category="Network / Wi-Fi / NAC",
-    badge_label="Network",
-    examples=[
-        "Network Monitoring (example)",
-    ],
-    optional=True,
+QUEUE_ANALYTICS_LABELS: Final[tuple[str, ...]] = (
+    "Crowd/Queue Analytics (example)",
 )
 
-FOOTFALL = SystemCategory(
-    category="Queue / Footfall Analytics",
-    badge_label="Footfall",
-    examples=[
-        "Crowd / Queue Analytics (example)",
-    ],
-    optional=True,
+SIGNAGE_LABELS: Final[tuple[str, ...]] = (
+    "Signage CMS (example)",
 )
 
-SIGNAGE = SystemCategory(
-    category="Digital Signage CMS",
-    badge_label="Signage",
-    examples=[
-        "Signage CMS (example)",
-    ],
-    optional=True,
+ORR_TRACKER_LABELS: Final[tuple[str, ...]] = (
+    "ORR Tracker / SharePoint (example)",
+    "ORR Tracker / Project Controls (example)",
 )
 
-# ── Ordered landscape for README / UI display ────────────────────────────────
+LANDSCAPE_CATEGORIES: Final[tuple[LandscapeCategory, ...]] = (
+    LandscapeCategory(
+        slug="itsm_cmdb",
+        family="Enterprise / Corporate",
+        badge_label="ITSM / CMDB",
+        category="ITSM/CMDB",
+        examples=ITSM_CMDB_LABELS,
+        contributions=("Incidents", "Change references", "Service ownership", "CI metadata"),
+        trace_fields=("source_system", "source_id", "ci_id"),
+        id_rule="INC0012345, PRB0012345, CHG0012345, or OPS-1234",
+    ),
+    LandscapeCategory(
+        slug="cmms_eam",
+        family="Enterprise / Corporate",
+        badge_label="CMMS / EAM",
+        category="CMMS/EAM",
+        examples=CMMS_EAM_LABELS,
+        contributions=("Punch lists", "Maintenance backlog", "Asset readiness"),
+        trace_fields=("source_system", "punch_list_id", "service_id"),
+        id_rule="PL-YYYY-xxxxx",
+    ),
+    LandscapeCategory(
+        slug="edms_document_control",
+        family="Enterprise / Corporate",
+        badge_label="EDMS",
+        category="EDMS/Document Control",
+        examples=EDMS_LABELS,
+        contributions=("Evidence packs", "Approvals", "Document control"),
+        trace_fields=("source_system", "doc_ref", "approval_status"),
+        id_rule="DOC-ORR-00087",
+    ),
+    LandscapeCategory(
+        slug="erp_enterprise_apps",
+        family="Enterprise / Corporate",
+        badge_label="ERP",
+        category="ERP/Enterprise Apps",
+        examples=ERP_LABELS,
+        contributions=("Commercial context", "Contract metadata", "Cost ownership"),
+        trace_fields=("source_system", "dashboard_ref", "owner_team"),
+        id_rule="DASH-00012",
+        optional=True,
+    ),
+    LandscapeCategory(
+        slug="guest_crm",
+        family="Enterprise / Corporate",
+        badge_label="Guest / CRM",
+        category="Guest/CRM",
+        examples=CRM_LABELS,
+        contributions=("Guest communications", "Campaign coordination", "Case context"),
+        trace_fields=("source_system", "service_id", "owner_team"),
+        id_rule="SVC-001",
+        optional=True,
+    ),
+    LandscapeCategory(
+        slug="observability_monitoring",
+        family="Enterprise / Corporate",
+        badge_label="Observability",
+        category="Observability/Monitoring",
+        examples=OBSERVABILITY_LABELS,
+        contributions=("Availability KPIs", "Latency", "Vendor dashboards"),
+        trace_fields=("source_system", "dashboard_ref", "service_credit_applicable"),
+        id_rule="DASH-00012",
+    ),
+    LandscapeCategory(
+        slug="logging_siem",
+        family="Enterprise / Corporate",
+        badge_label="Logging / SIEM",
+        category="Logging/SIEM",
+        examples=SIEM_LABELS,
+        contributions=("Security event context", "Correlation support"),
+        trace_fields=("source_system", "source_id", "assigned_group"),
+        id_rule="INC0012345 or OPS-1234",
+        optional=True,
+    ),
+    LandscapeCategory(
+        slug="ot_events_feed",
+        family="Venue / OT and Visitor Systems",
+        badge_label="OT Events",
+        category="OT Events Feed",
+        examples=OT_EVENT_FEED_LABELS,
+        contributions=("Live alarms", "Subsystem health", "Device-level traces"),
+        trace_fields=("source_system", "ot_event_id", "device_id"),
+        id_rule="EVT-OT-000123 and DEV-OT-000123",
+    ),
+    LandscapeCategory(
+        slug="bms_facilities",
+        family="Venue / OT and Visitor Systems",
+        badge_label="BMS",
+        category="BMS/Facilities vendors",
+        examples=BMS_VENDOR_LABELS,
+        contributions=("Building automation context", "Facilities ownership"),
+        trace_fields=("source_system", "device_id", "zone"),
+        id_rule="DEV-OT-000123",
+        optional=True,
+    ),
+    LandscapeCategory(
+        slug="vms_cctv",
+        family="Venue / OT and Visitor Systems",
+        badge_label="VMS / CCTV",
+        category="VMS/CCTV",
+        examples=VMS_CCTV_LABELS,
+        contributions=("Camera health", "Security visibility", "Alarm context"),
+        trace_fields=("source_system", "device_id", "linked_incident_id"),
+        id_rule="DEV-OT-000123",
+        optional=True,
+    ),
+    LandscapeCategory(
+        slug="access_control",
+        family="Venue / OT and Visitor Systems",
+        badge_label="Access",
+        category="Access Control",
+        examples=ACCESS_CONTROL_LABELS,
+        contributions=("Door and gate controller state", "Entry-device alarms"),
+        trace_fields=("source_system", "device_id", "linked_incident_id"),
+        id_rule="DEV-OT-000123",
+        optional=True,
+    ),
+    LandscapeCategory(
+        slug="ticketing_gate_validation",
+        family="Venue / OT and Visitor Systems",
+        badge_label="Ticketing",
+        category="Ticketing and Gate Validation",
+        examples=TICKETING_LABELS,
+        contributions=("Scan success", "QR latency", "Throughput", "Offline fallback events"),
+        trace_fields=("source_system", "linked_incident_id", "venue_area"),
+        id_rule="INC-0001 linkage plus venue-area timestamps",
+    ),
+    LandscapeCategory(
+        slug="pos_payments",
+        family="Venue / OT and Visitor Systems",
+        badge_label="POS / Payments",
+        category="POS/Payments",
+        examples=POS_PAYMENTS_LABELS,
+        contributions=("Payment dependency signals", "Revenue protection"),
+        trace_fields=("source_system", "service_id", "dashboard_ref"),
+        id_rule="SVC-003 and DASH-00012",
+        optional=True,
+    ),
+    LandscapeCategory(
+        slug="network_wifi_nac",
+        family="Venue / OT and Visitor Systems",
+        badge_label="Network",
+        category="Network/Wi-Fi/NAC",
+        examples=NETWORK_LABELS,
+        contributions=("Connectivity health", "Wi-Fi readiness", "Dependency visibility"),
+        trace_fields=("source_system", "dashboard_ref", "assigned_group"),
+        id_rule="DASH-00012",
+        optional=True,
+    ),
+    LandscapeCategory(
+        slug="queue_footfall_analytics",
+        family="Venue / OT and Visitor Systems",
+        badge_label="Queue / Footfall",
+        category="Queue/Footfall Analytics",
+        examples=QUEUE_ANALYTICS_LABELS,
+        contributions=("Guest flow context", "Demand signals", "Congestion patterns"),
+        trace_fields=("source_system", "venue_area", "ts"),
+        id_rule="Timestamp plus venue area",
+        optional=True,
+    ),
+    LandscapeCategory(
+        slug="digital_signage",
+        family="Venue / OT and Visitor Systems",
+        badge_label="Signage",
+        category="Digital Signage",
+        examples=SIGNAGE_LABELS,
+        contributions=("Wayfinding readiness", "Guest comms coverage"),
+        trace_fields=("source_system", "service_id", "dashboard_ref"),
+        id_rule="SVC-007 and DASH-00012",
+        optional=True,
+    ),
+)
 
-ALL_CATEGORIES: list[SystemCategory] = [
-    ITSM, CMDB, CMMS, EDMS, ERP, CRM, MONITORING, SIEM,
-    OT_EVENTS, BMS, VMS, ACCESS_CONTROL, TICKETING, POS,
-    NETWORK, FOOTFALL, SIGNAGE,
+ALL_CATEGORIES: Final[list[LandscapeCategory]] = list(LANDSCAPE_CATEGORIES)
+CORE_BADGE_CATEGORIES: Final[list[LandscapeCategory]] = [
+    category for category in ALL_CATEGORIES if not category.optional
 ]
+CATEGORY_BY_SLUG: Final[dict[str, LandscapeCategory]] = {
+    category.slug: category for category in ALL_CATEGORIES
+}
+LABEL_POOLS: Final[dict[str, tuple[str, ...]]] = {
+    category.slug: category.examples for category in ALL_CATEGORIES
+}
+ID_RULES: Final[dict[str, str]] = {
+    category.slug: category.id_rule for category in ALL_CATEGORIES
+}
 
-CORE_BADGE_CATEGORIES: list[SystemCategory] = [
-    c for c in ALL_CATEGORIES if not c.optional
-]
-
-# ── Source-system label pools (used by seed generator) ───────────────────────
-
-ITSM_LABELS = ["ServiceNow", "Jira Service Management"]
-CMDB_LABELS = ["ServiceNow CMDB", "Jira Assets"]
-EDMS_LABELS = ["SharePoint / M365", "EDMS / Document Control"]
-MONITORING_LABELS = ["Azure Monitor / Log Analytics", "Prometheus / Grafana", "Datadog"]
-OT_LABELS = ["BMS / Access Control / CCTV Event Feed"]
-TICKETING_LABELS = ["accesso Horizon", "Ticketing Platform / Gate Validation"]
-ORR_TRACKER_LABELS = ["ORR Tracker / SharePoint"]
-
-# ── ID pattern helpers ───────────────────────────────────────────────────────
-
-def make_inc_id(n: int, source: str = "ServiceNow") -> str:
-    """Return a realistic incident source ID."""
-    if "Jira" in source:
-        return f"OPS-{n:04d}"
-    return f"INC{n:07d}"
-
-
-def make_prb_id(n: int) -> str:
-    return f"PRB{n:07d}"
-
-
-def make_chg_id(n: int) -> str:
-    return f"CHG{n:07d}"
-
-
-def make_doc_ref(n: int) -> str:
-    return f"DOC-ORR-{n:05d}"
-
-
-def make_pl_id(year: int, n: int) -> str:
-    return f"PL-{year}-{n:05d}"
-
-
-def make_dash_ref(n: int) -> str:
-    return f"DASH-{n:05d}"
-
-
-def make_ci_id(n: int) -> str:
-    return f"CI{n:07d}"
-
-
-def make_ot_event_id(n: int) -> str:
-    return f"EVT-OT-{n:06d}"
-
-
-def make_device_id(n: int) -> str:
-    return f"DEV-OT-{n:06d}"
-
-
-# ── Anomaly thresholds ───────────────────────────────────────────────────────
-
-THRESHOLDS = {
-    "ticketing_scan_success_rate_warn": 0.97,   # below = warning
-    "ticketing_scan_success_rate_crit": 0.94,   # below = critical
+THRESHOLDS: Final[dict[str, float | int]] = {
+    "ticketing_scan_success_rate_warn": 0.97,
+    "ticketing_scan_success_rate_crit": 0.94,
     "ticketing_latency_warn_ms": 800,
     "ticketing_latency_crit_ms": 1500,
-    "ticketing_throughput_collapse_ppm": 20,    # below peak expected = anomaly
-    "ot_unacked_sev1_warn": 0,                  # any unacked sev1 = warn
+    "ticketing_throughput_collapse_ppm": 20,
+    "ot_unacked_sev1_warn": 0,
     "ot_unacked_sev2_warn": 2,
 }
 
-DISCLAIMER = (
-    "These are common example systems for large venues; the demo is "
-    "source-agnostic and connectors can be swapped to match the actual environment."
-)
+
+def make_ci_id(number: int) -> str:
+    return f"CI{number:07d}"
+
+
+def make_doc_ref(number: int) -> str:
+    return f"DOC-ORR-{number:05d}"
+
+
+def make_punch_list_id(year: int, number: int) -> str:
+    return f"PL-{year}-{number:05d}"
+
+
+def make_dashboard_ref(number: int) -> str:
+    return f"DASH-{number:05d}"
+
+
+def make_service_id(number: int) -> str:
+    return f"SVC-{number:03d}"
+
+
+def make_incident_id(number: int) -> str:
+    return f"INC-{number:04d}"
+
+
+def make_source_id(number: int, source_system: str, prefix: str = "INC") -> str:
+    if "Jira Service Management" in source_system:
+        return f"OPS-{number:04d}"
+    token = prefix.upper()
+    if token not in {"INC", "PRB", "CHG"}:
+        token = "INC"
+    return f"{token}{number:07d}"
+
+
+def make_ot_event_id(number: int) -> str:
+    return f"EVT-OT-{number:06d}"
+
+
+def make_device_id(number: int) -> str:
+    return f"DEV-OT-{number:06d}"

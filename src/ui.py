@@ -1,417 +1,490 @@
 from __future__ import annotations
 
+from typing import Any, Iterable
+
+import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-import json
 
-# ── Professional Control Tower Palette ────────────────────────────────────────
-# Deep navy primary, vivid teal accent, clean grays, status colors with depth
+from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
+
+APP_TITLE = "Al Hamra — Operations Readiness Control Tower"
+APP_PURPOSE = (
+    "Executive control tower for Day-One readiness across ORR gates, evidence, incidents, "
+    "vendor commitments, OT alarms, and guest-entry performance."
+)
+DEMO_MODE_NOTE = (
+    "Demo Mode: deterministic synthetic data is auto-generated when any required CSV is missing."
+)
+
+THEME = {
+    "ink": "#1E252F",
+    "ink_soft": "#5C6878",
+    "background": "#F5F1EA",
+    "surface": "#FFFDFC",
+    "surface_alt": "#F0E8DB",
+    "border": "#D9CDBB",
+    "accent": "#8C5A37",
+    "accent_soft": "#E7D6C4",
+    "teal": "#2F6F6C",
+    "ok": "#1F7A4D",
+    "warn": "#B76A16",
+    "crit": "#B43C2F",
+}
 
 STATUS_COLORS = {
-  "GREEN": "#059669",
-  "AMBER": "#d97706",
-  "RED": "#dc2626",
-  "OK": "#059669",
-  "WARN": "#d97706",
-  "CRIT": "#dc2626",
+    "GREEN": THEME["ok"],
+    "AMBER": THEME["warn"],
+    "RED": THEME["crit"],
+    "OK": THEME["ok"],
+    "WARN": THEME["warn"],
+    "CRIT": THEME["crit"],
 }
 
 SEVERITY_COLORS = {
-  1: "#991b1b",
-  2: "#dc2626",
-  3: "#ea580c",
-  4: "#d97706",
+    1: "#7F1D1D",
+    2: THEME["crit"],
+    3: THEME["warn"],
+    4: "#C68C39",
 }
 
-# Brand palette — enterprise control tower theme
-BRAND = {
-  "primary": "#0f172a",       # Slate-900 — deep navy
-  "primary_mid": "#1e293b",   # Slate-800
-  "accent": "#0d9488",        # Teal-600 — vivid teal accent
-  "accent_light": "#5eead4",  # Teal-300
-  "accent_bg": "#f0fdfa",     # Teal-50
-  "bg": "#f8fafc",            # Slate-50 — clean background
-  "surface": "#ffffff",       # Card surface
-  "muted": "#64748b",         # Slate-500
-  "muted_light": "#94a3b8",   # Slate-400
-  "border": "rgba(15, 23, 42, 0.08)",
-  "highlight": "#3b82f6",     # Blue-500 — info accent
-  "success": "#059669",       # Emerald-600
-  "warning": "#d97706",       # Amber-600
-  "danger": "#dc2626",        # Red-600
-}
-
-# Chart color palette — professional and distinct
-CHART_PALETTE = [
-  "#0d9488",   # Teal-600
-  "#3b82f6",   # Blue-500
-  "#8b5cf6",   # Violet-500
-  "#f59e0b",   # Amber-500
-  "#ef4444",   # Red-500
-  "#06b6d4",   # Cyan-500
-  "#ec4899",   # Pink-500
-  "#10b981",   # Emerald-500
+GUIDE_STEPS = [
+    "Overview: establish overall posture and Go/No-Go threshold.",
+    "Readiness heatmap: isolate RED gates and ownership.",
+    "Evidence pack: chase missing approvals and document refs.",
+    "Incidents: review MTTA, MTTR, and SLA discipline.",
+    "OT Events: surface unacknowledged critical alarms.",
+    "Ticketing KPIs: show scan success, latency, and throughput.",
+    "Recommendations: compare Draft preview with Final authoritative output.",
 ]
 
-FONT_STACK = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
 
-
-def render_color_legend() -> None:
-  cols = st.columns(6)
-  labels = [
-    ("GREEN", "Services OK"),
-    ("AMBER", "Attention"),
-    ("RED", "Critical"),
-    ("OK", "Metric OK"),
-    ("WARN", "Metric Warn"),
-    ("CRIT", "Metric Crit"),
-  ]
-  for col, (k, txt) in zip(cols, labels):
-    col.markdown(
-      f"<div style='display:flex;align-items:center;gap:8px;padding:4px 0'>"
-      f"<div style='width:12px;height:12px;border-radius:3px;background:{STATUS_COLORS[k]};box-shadow:0 0 0 2px {STATUS_COLORS[k]}22;'></div>"
-      f"<div style='color:{BRAND['muted']};font-size:12px;font-weight:500;letter-spacing:0.01em'>{txt}</div>"
-      f"</div>",
-      unsafe_allow_html=True,
+def configure_page(page_name: str, *, icon: str = ":material/dashboard:") -> None:
+    st.set_page_config(
+        page_title=APP_TITLE,
+        page_icon=icon,
+        layout="wide",
+        initial_sidebar_state="expanded",
     )
-
-
-def render_theme_settings() -> None:
-  """Render theme selector in the sidebar and persist choice to session state."""
-  if "theme_choice" not in st.session_state:
-    st.session_state["theme_choice"] = "Light"
-
-  with st.sidebar:
-    st.subheader("Theme")
-    choice = st.selectbox("UI Theme", ["Light", "Dark", "Brand Blue"], index=["Light", "Dark", "Brand Blue"].index(st.session_state["theme_choice"]))
-    if choice != st.session_state["theme_choice"]:
-      st.session_state["theme_choice"] = choice
-      apply_global_styles()
-
-
-ICONS = {
-  "check": "<svg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M20 6L9 17L4 12' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/></svg>",
-  "alert": "<svg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z' fill='white' stroke='none'/><path d='M12 9v4' stroke='rgba(0,0,0,0.7)' stroke-width='2' stroke-linecap='round'/><circle cx='12' cy='17' r='1' fill='rgba(0,0,0,0.7)'/></svg>",
-  "doc": "<svg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' fill='white' stroke='none'/><path d='M14 2v6h6' stroke='rgba(0,0,0,0.3)' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/><path d='M8 13h8M8 17h6' stroke='rgba(0,0,0,0.35)' stroke-width='1.5' stroke-linecap='round'/></svg>",
-  "trend_up": "<svg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M23 6l-9.5 9.5-5-5L1 18' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/><path d='M17 6h6v6' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>",
-  "shield": "<svg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' fill='white' stroke='none'/><path d='M9 12l2 2 4-4' stroke='rgba(0,0,0,0.5)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>",
-}
-
-# KPI card icon background gradients
-_ICON_GRADIENTS = {
-    "#fff4f4": "linear-gradient(135deg, #fecaca 0%, #fca5a5 100%)",  # Red tones
-    "#fff7e6": "linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)",  # Amber tones
-    "#effff4": "linear-gradient(135deg, #a7f3d0 0%, #6ee7b7 100%)",  # Green tones
-    "#eef6ff": "linear-gradient(135deg, #bfdbfe 0%, #93c5fd 100%)",  # Blue tones
-    "#fff7f0": "linear-gradient(135deg, #fed7aa 0%, #fdba74 100%)",  # Orange tones
-    "#ffe9e9": "linear-gradient(135deg, #fecaca 0%, #f87171 100%)",  # Deep red
-}
-
-
-def render_kpi_card(title: str, value: str | int | float, *, delta: str | None = None, icon: str | None = None, color: str | None = None) -> None:
-  """Render a modern KPI card with gradient icon background and optional delta."""
-  icon_html = ICONS.get(icon, "") if icon else ""
-  delta_html = ""
-  if delta:
-    delta_color = BRAND["danger"] if "⚠" in str(delta) else BRAND["muted"]
-    delta_html = f"<div style='color:{delta_color};font-size:11px;font-weight:600;letter-spacing:0.02em;margin-top:2px'>{delta}</div>"
-
-  icon_gradient = _ICON_GRADIENTS.get(color, f"linear-gradient(135deg, {BRAND['accent']}44 0%, {BRAND['accent']}88 100%)") if color else f"linear-gradient(135deg, {BRAND['accent']}44 0%, {BRAND['accent']}88 100%)"
-
-  st.markdown(
-    f"<div class='kpi-card' style='"
-    f"display:flex;align-items:center;gap:14px;padding:14px 16px;"
-    f"border-radius:12px;border:1px solid {BRAND['border']};"
-    f"background:{BRAND['surface']};"
-    f"box-shadow:0 1px 3px rgba(15,23,42,0.04),0 4px 12px rgba(15,23,42,0.03);'>"
-    f"<div style='"
-    f"width:42px;height:42px;border-radius:10px;"
-    f"display:flex;align-items:center;justify-content:center;"
-    f"background:{icon_gradient};flex-shrink:0;"
-    f"box-shadow:0 2px 6px rgba(15,23,42,0.08);'>"
-    f"{icon_html}"
-    f"</div>"
-    f"<div style='display:flex;flex-direction:column;min-width:0'>"
-    f"<div style='font-size:11.5px;color:{BRAND['muted']};font-weight:600;text-transform:uppercase;letter-spacing:0.04em;line-height:1.2'>{title}</div>"
-    f"<div style='font-size:22px;color:{BRAND['primary']};font-weight:700;line-height:1.3;letter-spacing:-0.01em'>{value}</div>"
-    f"{delta_html}"
-    f"</div>"
-    f"</div>",
-    unsafe_allow_html=True,
-  )
-
-def readiness_scale() -> list[list[float | str]]:
-  return [
-    [0.00, "#e2e8f0"],
-    [0.25, "#e2e8f0"],
-    [0.25, "#ef4444"],
-    [0.50, "#ef4444"],
-    [0.50, "#f59e0b"],
-    [0.75, "#f59e0b"],
-    [0.75, "#059669"],
-    [1.00, "#059669"],
-  ]
+    apply_global_styles()
+    render_sidebar(page_name)
 
 
 def apply_global_styles() -> None:
     st.markdown(
-        """
+        f"""
         <style>
-          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
-          :root {
-            --brand-primary: %(primary)s;
-            --brand-primary-mid: %(primary_mid)s;
-            --brand-accent: %(accent)s;
-            --brand-accent-light: %(accent_light)s;
-            --brand-muted: %(muted)s;
-            --brand-bg: %(bg)s;
-            --brand-surface: %(surface)s;
-            --brand-border: %(border)s;
-          }
+          :root {{
+            --ink: {THEME["ink"]};
+            --ink-soft: {THEME["ink_soft"]};
+            --bg: {THEME["background"]};
+            --surface: {THEME["surface"]};
+            --surface-alt: {THEME["surface_alt"]};
+            --border: {THEME["border"]};
+            --accent: {THEME["accent"]};
+            --accent-soft: {THEME["accent_soft"]};
+            --teal: {THEME["teal"]};
+            --ok: {THEME["ok"]};
+            --warn: {THEME["warn"]};
+            --crit: {THEME["crit"]};
+          }}
 
-          .block-container {
-            padding-top: 1.5rem;
+          html, body, [data-testid="stAppViewContainer"], .stApp {{
+            background:
+              radial-gradient(circle at top right, rgba(140, 90, 55, 0.10), transparent 28%),
+              linear-gradient(180deg, #f8f5ef 0%, var(--bg) 55%, #efe7da 100%);
+            color: var(--ink);
+            font-family: "IBM Plex Sans", "Aptos", sans-serif;
+          }}
+
+          .block-container {{
+            padding-top: 1.1rem;
             padding-bottom: 2rem;
             max-width: 1480px;
-            font-family: %(font)s;
-            background: var(--brand-bg);
-          }
+          }}
 
-          /* Titles */
-          h1 {
-            color: var(--brand-primary) !important;
-            font-weight: 800 !important;
-            letter-spacing: -0.02em !important;
-          }
-          h2, h3 {
-            color: var(--brand-primary) !important;
-            font-weight: 700 !important;
-            letter-spacing: -0.01em !important;
-          }
+          h1, h2, h3 {{
+            color: var(--ink) !important;
+            letter-spacing: -0.02em;
+          }}
 
-          /* KPI Cards */
-          .kpi-card {
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-          }
-          .kpi-card:hover {
-            box-shadow: 0 4px 16px rgba(15,23,42,0.08), 0 8px 24px rgba(15,23,42,0.04) !important;
-            transform: translateY(-1px);
-          }
+          [data-testid="stSidebar"] {{
+            background:
+              linear-gradient(180deg, rgba(30, 37, 47, 0.98) 0%, rgba(49, 57, 69, 0.98) 100%);
+            border-right: 1px solid rgba(255, 255, 255, 0.08);
+          }}
 
-          /* Native Streamlit Metric Cards */
-          [data-testid="stMetric"] {
-            border: 1px solid var(--brand-border);
-            border-radius: 12px;
-            padding: 0.75rem 1rem;
-            background: var(--brand-surface);
-            box-shadow: 0 1px 3px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.03);
-            transition: all 0.2s ease;
-          }
-          [data-testid="stMetric"]:hover {
-            box-shadow: 0 4px 16px rgba(15,23,42,0.08);
-          }
-          [data-testid="stMetricLabel"] {
-            font-weight: 600;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            color: var(--brand-muted);
-          }
-          [data-testid="stMetricValue"] {
+          [data-testid="stSidebar"] * {{
+            color: #F6F1E8 !important;
+          }}
+
+          [data-testid="stAlert"] {{
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--accent);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.7);
+          }}
+
+          [data-testid="stMetric"], .kpi-card {{
+            background: linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(255,252,248,0.97) 100%);
+            border: 1px solid rgba(140, 90, 55, 0.16);
+            border-radius: 16px;
+            box-shadow: 0 10px 28px rgba(30, 37, 47, 0.06);
+          }}
+
+          [data-testid="stDataFrame"] {{
+            border-radius: 16px;
+            border: 1px solid rgba(140, 90, 55, 0.16);
+            overflow: hidden;
+          }}
+
+          [data-testid="stExpander"] {{
+            border: 1px solid rgba(140, 90, 55, 0.16);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.82);
+          }}
+
+          .section-header {{
+            margin: 0.2rem 0 0.85rem 0;
+          }}
+
+          .section-header .eyebrow {{
+            color: var(--teal);
+            font-size: 0.78rem;
             font-weight: 700;
-            color: var(--brand-primary);
-          }
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+          }}
 
-          /* Data frames */
-          [data-testid="stHorizontalBlock"] > div:has(> [data-testid="stDataFrame"]) {
-            border: 1px solid var(--brand-border);
-            border-radius: 12px;
-            padding: 2px;
-            background: var(--brand-surface);
-            box-shadow: 0 1px 3px rgba(15,23,42,0.04);
-          }
+          .section-header .title {{
+            margin-top: 0.1rem;
+            color: var(--ink);
+            font-size: 1.35rem;
+            font-weight: 700;
+          }}
 
-          /* Tabs */
-          [data-baseweb="tab-list"] {
-            gap: 0.4rem;
-          }
-          [data-baseweb="tab"] {
-            border-radius: 8px;
-            padding: 0.35rem 0.85rem;
-            border: 1px solid var(--brand-border);
-            font-weight: 500;
-            transition: all 0.15s ease;
-          }
-          [data-baseweb="tab"][aria-selected="true"] {
-            background: var(--brand-accent) !important;
-            border-color: var(--brand-accent) !important;
-            color: white !important;
-            box-shadow: 0 2px 8px %(accent)s44;
-          }
+          .section-header .subtitle {{
+            color: var(--ink-soft);
+            font-size: 0.92rem;
+            margin-top: 0.1rem;
+          }}
 
-          /* Sidebar refinement */
-          [data-testid="stSidebar"] {
-            background: linear-gradient(180deg, %(primary)s 0%%, %(primary_mid)s 100%%);
-          }
-          [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
-          [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] li {
-            color: #FFFFFF !important;
-            line-height: 1.5;
-          }
-          [data-testid="stSidebar"] h1,
-          [data-testid="stSidebar"] h2,
-          [data-testid="stSidebar"] h3 {
-            color: #FFFFFF !important;
-          }
-          [data-testid="stSidebar"] label {
-            color: #FFFFFF !important;
-          }
+          .hero {{
+            padding: 1.35rem 1.5rem;
+            border-radius: 24px;
+            border: 1px solid rgba(140, 90, 55, 0.18);
+            background:
+              linear-gradient(120deg, rgba(255,255,255,0.98) 0%, rgba(248,241,231,0.96) 48%, rgba(231,214,196,0.72) 100%);
+            box-shadow: 0 16px 44px rgba(30, 37, 47, 0.08);
+            margin-bottom: 1rem;
+          }}
 
-          /* Expanders */
-          [data-testid="stExpander"] {
-            border-radius: 12px;
-            border: 1px solid var(--brand-border);
-            background: var(--brand-surface);
-          }
+          .hero .label {{
+            color: var(--teal);
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            font-weight: 700;
+            font-size: 0.78rem;
+          }}
 
-          /* Buttons */
-          .stButton > button[kind="primary"] {
-            background: linear-gradient(135deg, %(accent)s 0%%, #0f766e 100%%);
-            border: none;
-            border-radius: 10px;
+          .hero .page {{
+            color: var(--ink);
+            font-size: 2rem;
+            line-height: 1.1;
+            font-weight: 700;
+            margin-top: 0.2rem;
+          }}
+
+          .hero .purpose {{
+            color: var(--ink-soft);
+            font-size: 0.98rem;
+            margin-top: 0.45rem;
+            max-width: 68rem;
+          }}
+
+          .hero .meta {{
+            margin-top: 0.85rem;
+            color: var(--ink-soft);
+            font-size: 0.84rem;
+          }}
+
+          .badge-row {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.55rem;
+            margin-top: 0.9rem;
+          }}
+
+          .badge {{
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 0.45rem 0.7rem;
+            border-radius: 999px;
+            border: 1px solid rgba(47, 111, 108, 0.16);
+            background: rgba(47, 111, 108, 0.08);
+            color: var(--ink);
+            font-size: 0.84rem;
             font-weight: 600;
-            letter-spacing: 0.01em;
-            box-shadow: 0 2px 8px %(accent)s44;
-            transition: all 0.2s ease;
-          }
-          .stButton > button[kind="primary"]:hover {
-            box-shadow: 0 4px 16px %(accent)s66;
-            transform: translateY(-1px);
-          }
+          }}
 
-          /* Info/Warning/Error banners */
-          [data-testid="stAlert"] {
-            border-radius: 10px;
-            border-left: 4px solid;
-          }
+          .badge .dot {{
+            width: 0.55rem;
+            height: 0.55rem;
+            border-radius: 999px;
+            background: var(--teal);
+          }}
 
-          /* Dividers */
-          hr {
-            border: none;
-            height: 1px;
-            background: linear-gradient(to right, transparent, var(--brand-border), transparent);
-            margin: 1.5rem 0;
-          }
+          .status-pill {{
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 0.38rem 0.68rem;
+            border-radius: 999px;
+            border: 1px solid rgba(0,0,0,0.08);
+            font-size: 0.82rem;
+            font-weight: 700;
+            margin-right: 0.45rem;
+            margin-bottom: 0.45rem;
+            background: rgba(255,255,255,0.86);
+          }}
 
-          /* Progress bars */
-          .stProgress > div > div > div {
-            background: linear-gradient(90deg, %(accent)s, %(accent_light)s) !important;
-            border-radius: 4px;
-          }
+          .status-pill .status-dot {{
+            width: 0.55rem;
+            height: 0.55rem;
+            border-radius: 999px;
+          }}
 
-          /* Selectbox / inputs */
-          .stSelectbox > div > div,
-          .stTextInput > div > div {
-            border-radius: 8px !important;
-          }
+          .kpi-card {{
+            padding: 1rem 1.05rem;
+            min-height: 8rem;
+          }}
+
+          .kpi-title {{
+            color: var(--ink-soft);
+            font-size: 0.76rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+          }}
+
+          .kpi-value {{
+            color: var(--ink);
+            font-size: 1.9rem;
+            font-weight: 700;
+            margin-top: 0.45rem;
+          }}
+
+          .kpi-subtitle {{
+            color: var(--ink-soft);
+            font-size: 0.86rem;
+            margin-top: 0.45rem;
+            line-height: 1.35;
+          }}
+
+          .stButton button {{
+            border-radius: 999px;
+            border: 1px solid rgba(140, 90, 55, 0.28);
+            background: linear-gradient(180deg, #9a6540 0%, #7f5130 100%);
+            color: #fff !important;
+            font-weight: 700;
+            box-shadow: 0 8px 20px rgba(140, 90, 55, 0.18);
+          }}
+
+          .stDownloadButton button {{
+            border-radius: 999px;
+          }}
+
+          code, pre {{
+            font-family: "IBM Plex Mono", monospace !important;
+          }}
         </style>
-        """ % {
-            "primary": BRAND["primary"],
-            "primary_mid": BRAND["primary_mid"],
-            "accent": BRAND["accent"],
-            "accent_light": BRAND["accent_light"],
-            "muted": BRAND["muted"],
-            "bg": BRAND["bg"],
-            "surface": BRAND["surface"],
-            "border": BRAND["border"],
-            "font": FONT_STACK,
-        },
+        """,
         unsafe_allow_html=True,
     )
 
 
+def render_sidebar(page_name: str) -> None:
+    with st.sidebar:
+        st.markdown(f"### {APP_TITLE}")
+        st.caption(page_name)
+        st.info(DEMO_MODE_NOTE)
+        st.caption(DISCLAIMER)
+        st.markdown("#### 3-minute interview demo")
+        for index, step in enumerate(GUIDE_STEPS, start=1):
+            st.markdown(f"{index}. {step}")
+
+
+def render_page_header(page_name: str, description: str) -> None:
+    st.markdown(
+        f"""
+        <section class="hero">
+          <div class="label">{APP_TITLE}</div>
+          <div class="page">{page_name}</div>
+          <div class="purpose">{description}</div>
+          <div class="meta">{APP_PURPOSE}</div>
+          <div class="meta">{DEMO_MODE_NOTE} {DISCLAIMER}</div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+    render_landscape_badges()
+
+
+def render_landscape_badges() -> None:
+    badges = "".join(
+        f"<div class='badge'><span class='dot'></span><span>{category.badge_label}</span></div>"
+        for category in CORE_BADGE_CATEGORIES
+    )
+    st.markdown(f"<div class='badge-row'>{badges}</div>", unsafe_allow_html=True)
+
+
+def render_section_header(title: str, subtitle: str | None = None) -> None:
+    subtitle_html = f"<div class='subtitle'>{subtitle}</div>" if subtitle else ""
+    st.markdown(
+        f"""
+        <div class="section-header">
+          <div class="eyebrow">Control Tower View</div>
+          <div class="title">{title}</div>
+          {subtitle_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_status_badges(items: Iterable[dict[str, str] | tuple[str, str]]) -> None:
+    chunks: list[str] = []
+    for item in items:
+        if isinstance(item, dict):
+            label = str(item.get("label", "")).strip()
+            status = str(item.get("status", "OK")).strip().upper()
+        else:
+            label, status = str(item[0]).strip(), str(item[1]).strip().upper()
+        color = STATUS_COLORS.get(status, THEME["teal"])
+        chunks.append(
+            "<span class='status-pill'>"
+            f"<span class='status-dot' style='background:{color}'></span>"
+            f"<span>{label}: {status}</span>"
+            "</span>"
+        )
+    if chunks:
+        st.markdown("".join(chunks), unsafe_allow_html=True)
+
+
+def render_kpi_cards(cards: list[dict[str, Any]]) -> None:
+    columns = st.columns(len(cards))
+    for column, card in zip(columns, cards):
+        status = str(card.get("status", "OK")).upper()
+        accent = STATUS_COLORS.get(status, THEME["teal"])
+        subtitle = card.get("subtitle", "")
+        column.markdown(
+            f"""
+            <div class="kpi-card" style="border-top: 4px solid {accent};">
+              <div class="kpi-title">{card.get("title", "")}</div>
+              <div class="kpi-value">{card.get("value", "")}</div>
+              <div class="kpi-subtitle">{subtitle}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def render_download_buttons(items: list[dict[str, Any]]) -> None:
+    if not items:
+        return
+    columns = st.columns(len(items))
+    for column, item in zip(columns, items):
+        with column:
+            st.download_button(
+                label=str(item["label"]),
+                data=item["data"],
+                file_name=str(item["file_name"]),
+                mime=str(item.get("mime", "text/plain")),
+            )
+
+
+def render_lineage_panel(df: pd.DataFrame, *, title: str, trace_fields: list[str]) -> None:
+    render_section_header(title, "Source labels and trace references used on this page.")
+    if df.empty:
+        st.info("No records available for lineage.")
+        return
+    columns = [column for column in ["source_system", *trace_fields] if column in df.columns]
+    lineage = df[columns].drop_duplicates().head(8).copy()
+    st.dataframe(format_table(lineage), use_container_width=True, hide_index=True)
+    traces: list[str] = []
+    for column in trace_fields:
+        if column in df.columns:
+            values = [str(value) for value in df[column].dropna().astype(str).head(5).tolist() if str(value).strip()]
+            if values:
+                traces.append(f"{column}: {', '.join(values)}")
+    if traces:
+        st.code("\n".join(traces), language="text")
+
+
+def format_timestamp(value: Any) -> str:
+    if pd.isna(value):
+        return "-"
+    ts = pd.to_datetime(value, errors="coerce", utc=True)
+    if pd.isna(ts):
+        return str(value)
+    return ts.tz_convert("UTC").strftime("%Y-%m-%d %H:%M UTC")
+
+
+def format_percent(value: Any, *, digits: int = 1, assume_ratio: bool = False) -> str:
+    if value is None or pd.isna(value):
+        return "-"
+    numeric = float(value)
+    if assume_ratio:
+        numeric *= 100.0
+    return f"{numeric:.{digits}f}%"
+
+
+def format_minutes(value: Any) -> str:
+    if value is None or pd.isna(value):
+        return "-"
+    return f"{float(value):.0f} min"
+
+
+def format_table(df: pd.DataFrame) -> pd.DataFrame:
+    formatted = df.copy()
+    for column in formatted.columns:
+        if pd.api.types.is_datetime64_any_dtype(formatted[column]):
+            formatted[column] = formatted[column].map(format_timestamp)
+    return formatted
+
+
+def readiness_scale() -> list[list[float | str]]:
+    return [
+        [0.00, "#F3D7D3"],
+        [0.33, "#F3D7D3"],
+        [0.33, "#F2D9B4"],
+        [0.66, "#F2D9B4"],
+        [0.66, "#C8E2D4"],
+        [1.00, "#C8E2D4"],
+    ]
+
+
 def style_plotly(fig: go.Figure, *, height: int = 380) -> go.Figure:
-    """Apply professional Control Tower styling to any Plotly figure."""
     fig.update_layout(
         template="plotly_white",
-        colorway=CHART_PALETTE,
         height=height,
-        margin=dict(l=16, r=16, t=56, b=20),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(255,255,255,0.18)",
+        margin=dict(l=24, r=24, t=60, b=24),
+        font=dict(family="IBM Plex Sans, Aptos, sans-serif", color=THEME["ink_soft"], size=12),
+        title=dict(x=0.01, font=dict(color=THEME["ink"], size=15)),
         legend=dict(
             orientation="h",
             yanchor="bottom",
             y=1.02,
             xanchor="right",
             x=1,
-            font=dict(size=11, color=BRAND["muted"]),
-            bgcolor="rgba(255,255,255,0)",
-        ),
-        title=dict(
-            x=0.02,
-            font=dict(size=14, color=BRAND["primary"], family=FONT_STACK),
-        ),
-        font=dict(family=FONT_STACK, color=BRAND["muted"], size=11),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        hoverlabel=dict(
-            bgcolor=BRAND["primary"],
-            font_size=12,
-            font_family=FONT_STACK,
-            font_color="white",
-            bordercolor="rgba(0,0,0,0)",
+            bgcolor="rgba(0,0,0,0)",
         ),
     )
-    fig.update_xaxes(
-        showgrid=False,
-        linecolor="rgba(148, 163, 184, 0.2)",
-        tickfont=dict(size=10, color=BRAND["muted_light"]),
-    )
-    fig.update_yaxes(
-        gridcolor="rgba(148, 163, 184, 0.12)",
-        linecolor="rgba(148, 163, 184, 0.2)",
-        tickfont=dict(size=10, color=BRAND["muted_light"]),
-    )
+    fig.update_xaxes(showgrid=False, linecolor="rgba(30,37,47,0.12)")
+    fig.update_yaxes(gridcolor="rgba(30,37,47,0.08)", linecolor="rgba(30,37,47,0.12)")
     return fig
-
-
-def render_recommendations(recommendations: dict[str, Any]) -> None:
-    """Render recommendations with improved design and formatting."""
-    st.markdown("""
-    <style>
-      .recommendation-section {
-        margin-bottom: 2rem;
-        padding: 1rem;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        background-color: #f9fafb;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-      }
-      .recommendation-title {
-        font-size: 1.25rem;
-        font-weight: bold;
-        color: #1f2937;
-        margin-bottom: 0.5rem;
-      }
-      .recommendation-content {
-        font-size: 1rem;
-        color: #4b5563;
-        line-height: 1.5;
-      }
-    </style>
-    """, unsafe_allow_html=True)
-
-    for section, content in recommendations.items():
-        st.markdown(f"<div class='recommendation-section'>", unsafe_allow_html=True)
-        st.markdown(f"<div class='recommendation-title'>{section.replace('_', ' ').title()}</div>", unsafe_allow_html=True)
-        if isinstance(content, list):
-            for item in content:
-                if isinstance(item, dict):
-                    st.markdown(f"<div class='recommendation-content'>{json.dumps(item, indent=2)}</div>", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"<div class='recommendation-content'>- {item}</div>", unsafe_allow_html=True)
-        elif isinstance(content, str):
-            st.markdown(f"<div class='recommendation-content'>{content}</div>", unsafe_allow_html=True)
-        elif isinstance(content, (int, float)):
-            st.markdown(f"<div class='recommendation-content'>{content}</div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)

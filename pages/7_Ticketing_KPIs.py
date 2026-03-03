@@ -1,201 +1,171 @@
-"""Page 7 — Ticketing KPIs (gate scan / QR validation / throughput time series).
-
-DISCLAIMER: Source system names are example labels; demo is source-agnostic.
-"""
 from __future__ import annotations
 
 import plotly.express as px
 import streamlit as st
 
 from src.data import ensure_data_and_load
-from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER, THRESHOLDS
-from src.ui import STATUS_COLORS, apply_global_styles, style_plotly, render_kpi_card
-
-st.set_page_config(layout="wide")
-apply_global_styles()
-st.title("🎫 Ticketing KPIs")
-st.caption("Gate scan success / QR validation latency / throughput — 48-hour rolling view")
-
-# ── Demo mode banner & landscape badges ──────────────────────────────────────
-st.info(
-    "⚡ Synthetic dataset — evidence-driven readiness model — example system landscape labels. "
-    + DISCLAIMER,
-    icon="🔬",
+from src.metrics import ticketing_kpi_summary
+from src.system_landscape import THRESHOLDS
+from src.ui import (
+    configure_page,
+    format_table,
+    render_download_buttons,
+    render_kpi_cards,
+    render_lineage_panel,
+    render_page_header,
+    render_section_header,
+    render_status_badges,
+    style_plotly,
 )
-badge_cols = st.columns(len(CORE_BADGE_CATEGORIES))
-for col, cat in zip(badge_cols, CORE_BADGE_CATEGORIES):
-    col.caption(f"**{cat.badge_label}**")
 
-st.divider()
+configure_page("Ticketing KPIs")
+render_page_header(
+    "Ticketing KPIs",
+    "Track gate scan success, QR latency, throughput, denied entries, and fallback activations using a venue-style time series.",
+)
 
-# ── Load data ─────────────────────────────────────────────────────────────────
 try:
     data = ensure_data_and_load()
-except Exception as e:
-    st.error(f"Data load error: {e}")
+except Exception as exc:
+    st.error(f"Data load failed: {exc}")
     st.stop()
 
-tkt = data.ticketing_kpis.copy()
+ticketing = data.ticketing_kpis.copy()
 
-if tkt.empty:
-    st.warning("No ticketing KPI data available.")
-    st.stop()
+col1, col2 = st.columns(2)
+with col1:
+    venue_area = st.selectbox("Venue area", ["All"] + sorted(ticketing["venue_area"].dropna().unique().tolist()))
+with col2:
+    anomaly_only = st.toggle("Show anomaly windows only", value=False)
 
-# ── Filters ───────────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.subheader("Filters")
-    area_opts = sorted(tkt["venue_area"].dropna().unique().tolist()) if "venue_area" in tkt.columns else []
-    sel_area = st.multiselect("Venue area", area_opts, default=area_opts, key="tkt_area")
-    anomaly_only = st.checkbox("Show anomaly windows only", value=False)
-
-df = tkt.copy()
-if sel_area and "venue_area" in df.columns:
-    df = df[df["venue_area"].isin(sel_area)]
-
-# ── Anomaly flag columns ───────────────────────────────────────────────────────
-warn_sr = THRESHOLDS["ticketing_scan_success_rate_warn"]
-crit_sr = THRESHOLDS["ticketing_scan_success_rate_crit"]
-crit_lat = THRESHOLDS["ticketing_latency_crit_ms"]
-
-if "scan_success_rate" in df.columns:
-    import pandas as pd
-    df["sr_status"] = "OK"
-    df.loc[df["scan_success_rate"] < warn_sr, "sr_status"] = "WARN"
-    df.loc[df["scan_success_rate"] < crit_sr, "sr_status"] = "CRIT"
-
-if anomaly_only and "scan_success_rate" in df.columns and "qr_validation_latency_ms_p95" in df.columns:
-    import pandas as pd
-    anom_mask = (
-        (df["scan_success_rate"] < warn_sr)
-        | (df["qr_validation_latency_ms_p95"] > crit_lat)
-    )
-    df = df[anom_mask]
-
-# ── KPI cards ─────────────────────────────────────────────────────────────────
-total_anomalies = 0
-total_offline = 0
-min_sr = None
-max_lat = None
-
-if "scan_success_rate" in tkt.columns:
-    sr_series = tkt["scan_success_rate"].dropna()
-    min_sr = float(sr_series.min()) if not sr_series.empty else None
-    total_anomalies += int((sr_series < warn_sr).sum())
-
-if "qr_validation_latency_ms_p95" in tkt.columns:
-    lat_series = tkt["qr_validation_latency_ms_p95"].dropna()
-    max_lat = float(lat_series.max()) if not lat_series.empty else None
-    total_anomalies += int((lat_series > crit_lat).sum())
-
-if "offline_fallback_activations" in tkt.columns:
-    total_offline = int(tkt["offline_fallback_activations"].fillna(0).sum())
-
-total_denied = int(tkt["denied_entries"].fillna(0).sum()) if "denied_entries" in tkt.columns else 0
-
-c1, c2, c3, c4 = st.columns(4)
-render_kpi_card("Anomaly Windows", total_anomalies, icon="alert", color="#fff4f4")
-render_kpi_card("Min Scan Success Rate", (f"{min_sr:.1%}" if min_sr is not None else "N/A"), icon=None, color="#eef6ff")
-render_kpi_card("Offline Fallback Activations", total_offline, icon="alert", color="#eef6ff")
-render_kpi_card("Total Denied Entries", total_denied, icon=None, color="#fff7f0")
-
-st.divider()
-
-# ── Charts ─────────────────────────────────────────────────────────────────────
-left, right = st.columns(2)
-
-with left:
-    st.subheader("Scan Success Rate over Time")
-    if not df.empty and "ts" in df.columns and "scan_success_rate" in df.columns:
-        avg_df = df.groupby("ts", as_index=False)["scan_success_rate"].mean()
-        fig = px.line(
-            avg_df, x="ts", y="scan_success_rate",
-            title="Avg Scan Success Rate (all areas)",
-            labels={"scan_success_rate": "Success Rate", "ts": "Time"},
-        )
-        fig.add_hline(y=warn_sr, line_dash="dash", line_color="orange", annotation_text=f"Warn {warn_sr:.0%}")
-        fig.add_hline(y=crit_sr, line_dash="dash", line_color="red", annotation_text=f"Crit {crit_sr:.0%}")
-        fig.update_yaxes(tickformat=".1%")
-        style_plotly(fig)
-        st.plotly_chart(fig, use_container_width=True)
-
-with right:
-    st.subheader("QR Validation Latency p95")
-    if not df.empty and "ts" in df.columns and "qr_validation_latency_ms_p95" in df.columns:
-        avg_lat = df.groupby("ts", as_index=False)["qr_validation_latency_ms_p95"].mean()
-        fig2 = px.line(
-            avg_lat, x="ts", y="qr_validation_latency_ms_p95",
-            title="Avg QR Latency p95 (ms)",
-            labels={"qr_validation_latency_ms_p95": "Latency p95 (ms)", "ts": "Time"},
-        )
-        fig2.add_hline(y=THRESHOLDS["ticketing_latency_warn_ms"], line_dash="dash",
-                       line_color="orange", annotation_text=f"Warn {THRESHOLDS['ticketing_latency_warn_ms']} ms")
-        fig2.add_hline(y=crit_lat, line_dash="dash",
-                       line_color="red", annotation_text=f"Crit {crit_lat} ms")
-        style_plotly(fig2)
-        st.plotly_chart(fig2, use_container_width=True)
-
-# ── Per-area throughput ────────────────────────────────────────────────────────
-st.subheader("Gate Throughput per Area")
-if not df.empty and "ts" in df.columns and "gate_throughput_ppm" in df.columns and "venue_area" in df.columns:
-    fig3 = px.line(
-        df, x="ts", y="gate_throughput_ppm", color="venue_area",
-        title="Gate Throughput (persons/min) by Area",
-        labels={"gate_throughput_ppm": "Throughput (ppm)", "ts": "Time"},
-    )
-    style_plotly(fig3)
-    st.plotly_chart(fig3, use_container_width=True)
-
-# ── Per-area scan success heatmap-style ───────────────────────────────────────
-st.subheader("Scan Success Rate by Area")
-if not df.empty and "venue_area" in df.columns and "scan_success_rate" in df.columns:
-    area_agg = df.groupby("venue_area", as_index=False)["scan_success_rate"].mean()
-    area_agg["status"] = area_agg["scan_success_rate"].apply(
-        lambda v: "CRIT" if v < crit_sr else ("WARN" if v < warn_sr else "OK")
-    )
-    fig4 = px.bar(
-        area_agg, x="venue_area", y="scan_success_rate", color="status",
-        color_discrete_map=STATUS_COLORS,
-        title="Mean Scan Success Rate by Area (filtered period)",
-    )
-    fig4.update_yaxes(tickformat=".1%", range=[0.85, 1.0])
-    style_plotly(fig4)
-    st.plotly_chart(fig4, use_container_width=True)
-
-# ── Anomaly rows highlight ─────────────────────────────────────────────────────
-st.subheader("Anomaly window details")
-anom_df = tkt.copy()
-if "scan_success_rate" in anom_df.columns and "qr_validation_latency_ms_p95" in anom_df.columns:
-    anom_df = anom_df[
-        (anom_df["scan_success_rate"] < warn_sr)
-        | (anom_df["qr_validation_latency_ms_p95"] > crit_lat)
+filtered = ticketing.copy()
+if venue_area != "All":
+    filtered = filtered[filtered["venue_area"] == venue_area]
+if anomaly_only:
+    filtered = filtered[
+        (filtered["scan_success_rate"] < THRESHOLDS["ticketing_scan_success_rate_warn"])
+        | (filtered["qr_validation_latency_ms_p95"] > THRESHOLDS["ticketing_latency_crit_ms"])
     ]
 
-if anom_df.empty:
-    st.success("No anomaly windows detected in the current dataset. ✓")
-else:
-    st.warning(f"{len(anom_df)} anomaly window(s) detected below threshold or above latency ceiling.")
-    show_cols = [c for c in ["ts", "source_system", "venue_area", "scan_success_rate",
-                              "qr_validation_latency_ms_p95", "gate_throughput_ppm",
-                              "denied_entries", "offline_fallback_activations",
-                              "payment_dependency_flag", "linked_incident_id"] if c in anom_df.columns]
-    st.dataframe(anom_df[show_cols].sort_values("ts", ascending=False) if "ts" in anom_df.columns
-                 else anom_df[show_cols], use_container_width=True)
+summary = ticketing_kpi_summary(filtered)
+render_status_badges(
+    [
+        {
+            "label": "Scan success",
+            "status": "CRIT" if summary["min_success_rate"] is not None and summary["min_success_rate"] < THRESHOLDS["ticketing_scan_success_rate_crit"] else "WARN" if summary["anomaly_windows"] else "OK",
+        },
+        {
+            "label": "Latency",
+            "status": "CRIT" if summary["max_latency_p95"] is not None and summary["max_latency_p95"] > THRESHOLDS["ticketing_latency_crit_ms"] else "OK",
+        },
+        {
+            "label": "Throughput",
+            "status": "WARN" if summary["throughput_collapses"] else "OK",
+        },
+    ]
+)
+render_kpi_cards(
+    [
+        {
+            "title": "Anomaly windows",
+            "value": summary["anomaly_windows"],
+            "subtitle": "Any scan-success drop below 97% or latency above 1500 ms is counted here.",
+            "status": "CRIT" if summary["anomaly_windows"] >= 8 else "WARN" if summary["anomaly_windows"] else "OK",
+        },
+        {
+            "title": "Min scan success",
+            "value": f"{summary['min_success_rate']:.1%}" if summary["min_success_rate"] is not None else "-",
+            "subtitle": "Critical threshold is 94% in this demo.",
+            "status": "CRIT" if summary["min_success_rate"] is not None and summary["min_success_rate"] < THRESHOLDS["ticketing_scan_success_rate_crit"] else "WARN" if summary["anomaly_windows"] else "OK",
+        },
+        {
+            "title": "Max latency p95",
+            "value": f"{summary['max_latency_p95']:.0f} ms" if summary["max_latency_p95"] is not None else "-",
+            "subtitle": "Use this to explain the difference between degradation and collapse.",
+            "status": "CRIT" if summary["max_latency_p95"] is not None and summary["max_latency_p95"] > THRESHOLDS["ticketing_latency_crit_ms"] else "OK",
+        },
+        {
+            "title": "Offline fallback",
+            "value": summary["total_offline_fallbacks"],
+            "subtitle": f"Denied entries: {summary['total_denied']}",
+            "status": "WARN" if summary["total_offline_fallbacks"] else "OK",
+        },
+    ]
+)
 
-# ── Full table & download ──────────────────────────────────────────────────────
-with st.expander(f"Full filtered data ({len(df)} rows)"):
-    all_cols = [c for c in ["ts", "source_system", "venue_area", "scan_success_rate",
-                              "qr_validation_latency_ms_p95", "gate_throughput_ppm",
-                              "denied_entries", "offline_fallback_activations",
-                              "payment_dependency_flag", "linked_incident_id"] if c in df.columns]
-    st.dataframe(df[all_cols], use_container_width=True)
-
-    csv_bytes = df[all_cols].to_csv(index=False).encode()
-    st.download_button("⬇ Download Ticketing KPIs CSV", csv_bytes, "ticketing_kpis_filtered.csv", "text/csv")
-
-# ── Source system note ────────────────────────────────────────────────────────
-with st.expander("Source system note"):
-    st.markdown(
-        "Data labelled with source system: **accesso Horizon / Ticketing Platform — Gate Validation (examples)**. "
-        "In a real deployment, this time series would be ingested from the venue's ticketing platform via API or data lake export. "
-        + DISCLAIMER
+left, right = st.columns(2)
+with left:
+    render_section_header("Scan success trend", "This is the chart to use when the panel asks how you would spot guest-entry degradation before queues form.")
+    chart = px.line(
+        filtered,
+        x="ts",
+        y="scan_success_rate",
+        color="venue_area",
+        title="Scan success by venue area",
     )
+    chart.add_hline(y=THRESHOLDS["ticketing_scan_success_rate_warn"], line_dash="dot", line_color="#B76A16")
+    chart.add_hline(y=THRESHOLDS["ticketing_scan_success_rate_crit"], line_dash="dot", line_color="#B43C2F")
+    chart.update_yaxes(tickformat=".0%")
+    style_plotly(chart, height=360)
+    st.plotly_chart(chart, use_container_width=True)
+
+with right:
+    render_section_header("QR latency trend", "Latency spikes usually show up before operators start reporting failed scans.")
+    chart = px.line(
+        filtered,
+        x="ts",
+        y="qr_validation_latency_ms_p95",
+        color="venue_area",
+        title="QR validation latency p95 by venue area",
+    )
+    chart.add_hline(y=THRESHOLDS["ticketing_latency_warn_ms"], line_dash="dot", line_color="#B76A16")
+    chart.add_hline(y=THRESHOLDS["ticketing_latency_crit_ms"], line_dash="dot", line_color="#B43C2F")
+    style_plotly(chart, height=360)
+    st.plotly_chart(chart, use_container_width=True)
+
+render_section_header("Throughput by venue area", "Use this view to show where guest flow is collapsing even when scan success still looks reasonable.")
+throughput = px.line(
+    filtered,
+    x="ts",
+    y="gate_throughput_ppm",
+    color="venue_area",
+    title="Gate throughput by venue area",
+)
+style_plotly(throughput, height=360)
+st.plotly_chart(throughput, use_container_width=True)
+
+render_section_header("Anomaly register", "Linked incident IDs make ticketing degradation traceable back into the incident register.")
+display_columns = [
+    "ts",
+    "source_system",
+    "venue_area",
+    "scan_success_rate",
+    "qr_validation_latency_ms_p95",
+    "gate_throughput_ppm",
+    "denied_entries",
+    "offline_fallback_activations",
+    "payment_dependency_flag",
+    "linked_incident_id",
+]
+st.dataframe(
+    format_table(filtered[display_columns].sort_values("ts", ascending=False)),
+    use_container_width=True,
+    hide_index=True,
+)
+
+render_download_buttons(
+    [
+        {
+            "label": "Download ticketing CSV",
+            "data": filtered.to_csv(index=False).encode("utf-8"),
+            "file_name": "ticketing_kpis_filtered.csv",
+            "mime": "text/csv",
+        }
+    ]
+)
+
+render_lineage_panel(
+    filtered,
+    title="Data lineage",
+    trace_fields=["venue_area", "linked_incident_id"],
+)

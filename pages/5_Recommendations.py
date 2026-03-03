@@ -1,284 +1,238 @@
-"""Page 5 — Live Recommendations (Groq + heuristic fallback).
-
-Key design decisions:
-- service.recommend() never raises; fallback is always available.
-- Streaming is attempted when key is available; falls back to one-shot on error.
-- JSON output is validated before rendering structured panels.
-- API key is NEVER echoed to the UI or logs.
-"""
 from __future__ import annotations
 
+import json
 import os
 from typing import Any
 
 import streamlit as st
 
 from src.data import ensure_data_and_load
-from src.metrics import (
-    compute_mtta_minutes,
-    compute_mttr_minutes,
-    ot_event_summary,
-    readiness_score,
-    ticketing_kpi_summary,
-    vendor_scorecard,
-)
-from src.recommendations import schema as rec_schema
-from src.recommendations import service as rec_service
-from src.recommendations.groq_adapter import call_groq_stream, parse_and_validate
-from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER
-from src.ui import apply_global_styles
-
-st.set_page_config(layout="wide")
-apply_global_styles()
-st.title("🧠 Recommendations")
-st.caption("Groq-powered (falls back to heuristic if key is unavailable)")
-
-# ── Demo mode banner ──────────────────────────────────────────────────────────
-st.info(
-    "⚡ Synthetic dataset — evidence-driven readiness model — example system landscape labels. "
-    + DISCLAIMER,
-    icon="🔬",
+from src.recommendations.service import recommend, stream_draft_preview
+from src.recommendations.snapshot import build_snapshot
+from src.ui import (
+    configure_page,
+    render_download_buttons,
+    render_kpi_cards,
+    render_page_header,
+    render_section_header,
+    render_status_badges,
 )
 
-# ── Landscape badges ───────────────────────────────────────────────────────────
-badge_cols = st.columns(len(CORE_BADGE_CATEGORIES))
-for col, cat in zip(badge_cols, CORE_BADGE_CATEGORIES):
-    col.caption(f"**{cat.badge_label}**")
 
-st.divider()
-
-# ── Secret / key handling ─────────────────────────────────────────────────────
 def _resolve_api_key() -> str | None:
-    """Resolve GROQ_API_KEY without ever echoing the value to the UI."""
     try:
         if "GROQ_API_KEY" in st.secrets:
-            return str(st.secrets["GROQ_API_KEY"]).strip() or None
+            secret_value = str(st.secrets["GROQ_API_KEY"]).strip()
+            if secret_value:
+                return secret_value
     except Exception:
         pass
-    return os.environ.get("GROQ_API_KEY", "").strip() or None
+
+    env_value = os.environ.get("GROQ_API_KEY", "").strip()
+    if env_value:
+        return env_value
+
+    session_value = str(st.session_state.get("groq_session_key", "")).strip()
+    return session_value or None
 
 
+def _render_signal_list(items: list[dict[str, Any]], primary_key: str) -> None:
+    if not items:
+        st.caption("No items.")
+        return
+    for item in items:
+        label = item.get(primary_key, "")
+        status = str(item.get("status", "OK")).upper()
+        detail = item.get("detail", item.get("impact", ""))
+        owner = item.get("owner")
+        trace_refs = item.get("trace_refs", [])
+        st.markdown(f"**{label}**")
+        st.caption(f"{status} | {detail}")
+        if owner:
+            st.caption(f"Owner: {owner}")
+        if trace_refs:
+            st.code(", ".join(str(value) for value in trace_refs), language="text")
+
+
+configure_page("Recommendations")
+render_page_header(
+    "Recommendations",
+    "Generate a Draft preview from a fast model and then a Final authoritative recommendation set in strict JSON. The final JSON is the only structured output used by the page and exports.",
+)
+
+try:
+    data = ensure_data_and_load()
+except Exception as exc:
+    st.error(f"Data load failed: {exc}")
+    st.stop()
+
+snapshot = build_snapshot(data)
 api_key = _resolve_api_key()
 
 with st.sidebar:
-    st.subheader("API Key")
-    if api_key:
-        st.success("Key loaded from environment / secrets.", icon="🔑")
-    else:
-        st.info(
-            "No key found. Paste below for this session (not saved to disk).",
-            icon="🔑",
-        )
-        session_key = st.text_input("GROQ_API_KEY (session only)", type="password", key="groq_session_key")
-        if session_key:
-            os.environ["GROQ_API_KEY"] = session_key.strip()
-            api_key = session_key.strip()
-
-    st.subheader("Model settings")
-    model = st.selectbox(
-        "Model",
-        ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it"],
+    st.markdown("#### Recommendation settings")
+    st.caption("Key lookup order: Streamlit secrets, then environment variable, then the session-only field below.")
+    st.text_input(
+        "Session-only GROQ_API_KEY",
+        key="groq_session_key",
+        type="password",
+        help="Stored in this browser session only and never written to disk.",
+    )
+    preview_model = st.selectbox(
+        "Draft preview model",
+        ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"],
         index=0,
     )
-    temperature = st.slider("Temperature", 0.0, 1.0, 0.2, 0.05)
-    max_tokens = st.selectbox("Max output tokens", [512, 1024, 1536, 2048], index=2)
-    use_stream = st.toggle("Streaming (when key available)", value=True)
+    final_model = st.selectbox(
+        "Final authoritative model",
+        ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
+        index=0,
+    )
 
-# ── Load data (auto-generate if missing) ──────────────────────────────────────
-try:
-    data = ensure_data_and_load()
-except Exception as e:
-    st.error(f"Data load error: {e}")
-    st.stop()
+render_status_badges(
+    [
+        {"label": "Draft preview", "status": "OK" if api_key else "WARN"},
+        {"label": "Final JSON", "status": "OK" if api_key else "WARN"},
+        {"label": "Offline fallback", "status": "OK"},
+    ]
+)
+render_kpi_cards(
+    [
+        {
+            "title": "RED gates",
+            "value": snapshot["readiness"]["red_gate_count"],
+            "subtitle": "Primary launch gating signal in the final recommendation set.",
+            "status": "CRIT" if snapshot["readiness"]["red_gate_count"] else "OK",
+        },
+        {
+            "title": "Missing evidence",
+            "value": snapshot["evidence"]["missing_count"],
+            "subtitle": "Document-control debt included in the recommendation snapshot.",
+            "status": "WARN" if snapshot["evidence"]["missing_count"] else "OK",
+        },
+        {
+            "title": "Open Sev-1/2 incidents",
+            "value": snapshot["incidents"]["open_sev1_2"],
+            "subtitle": "Critical incident volume feeding the recommendation engine.",
+            "status": "CRIT" if snapshot["incidents"]["open_sev1_2"] else "OK",
+        },
+        {
+            "title": "Ticketing anomaly windows",
+            "value": snapshot["ticketing_signals"]["anomaly_windows"],
+            "subtitle": "Guest-entry performance signal feeding the recommendation engine.",
+            "status": "WARN" if snapshot["ticketing_signals"]["anomaly_windows"] else "OK",
+        },
+    ]
+)
 
-# ── Build snapshot (aggregated metrics only — no raw secrets) ─────────────────
-rs = readiness_score(data.readiness)
-vs = vendor_scorecard(data.vendors)
-open_inc = data.incidents[data.incidents["status"].isin(["OPEN", "MITIGATED"])].copy()
-sev12 = open_inc[open_inc["severity"].isin([1, 2])]
+if "recommendation_payload" not in st.session_state:
+    st.session_state["recommendation_payload"] = None
+    st.session_state["recommendation_source"] = None
+    st.session_state["recommendation_warning"] = None
+    st.session_state["draft_preview"] = ""
+    st.session_state["draft_notice"] = None
 
-ot_sig = ot_event_summary(data.ot_events)
-tkt_sig = ticketing_kpi_summary(data.ticketing_kpis)
+run = st.button("Generate recommendations", type="primary")
+if run:
+    st.session_state["draft_preview"] = ""
+    st.session_state["draft_notice"] = None
+    preview_placeholder = st.empty()
 
-snapshot: dict[str, Any] = {
-    "readiness": {
-        "red_gate_count": int((data.readiness["status"] == "RED").sum()),
-        "top_blockers": (
-            data.readiness[data.readiness["status"] == "RED"][["service", "gate", "blocker"]]
-            .head(8)
-            .to_dict(orient="records")
-        ),
-        "service_ranking": rs.head(6).to_dict(orient="records"),
-    },
-    "evidence": {
-        "missing_count": int((data.evidence["status"] == "MISSING").sum()),
-        "missing_top": (
-            data.evidence[data.evidence["status"] == "MISSING"][
-                ["service", "gate", "evidence_type", "owner"]
-            ]
-            .head(10)
-            .to_dict(orient="records")
-        ),
-    },
-    "incidents": {
-        "open_count": int(len(open_inc)),
-        "open_sev1_2": int(len(sev12)),
-        "mtta_min": compute_mtta_minutes(data.incidents),
-        "mttr_min": compute_mttr_minutes(data.incidents),
-        "open_top": (
-            open_inc.sort_values("opened_at", ascending=False)[
-                ["incident_id", "service", "severity", "status", "summary"]
-            ]
-            .head(10)
-            .to_dict(orient="records")
-        ),
-    },
-    "vendors": {
-        "breach_vendors": (
-            vs[vs["breach_count"] > 0][["vendor", "service", "breach_count"]]
-            .head(10)
-            .to_dict(orient="records")
-        ),
-    },
-    "ot_events": ot_sig,
-    "ticketing": tkt_sig,
-}
-
-# ── Action ────────────────────────────────────────────────────────────────────
-run = st.button("🚀 Generate Recommendations", type="primary")
-
-if not run:
-    st.info("Click **Generate Recommendations** to produce an AI-powered action plan.")
-    st.stop()
-
-rec_dict: dict[str, Any] | None = None
-warning_msg: str | None = None
-
-# --- Attempt Groq if key present and streaming requested ---
-if api_key and use_stream:
-    st.subheader("Raw output (streaming…)")
-    placeholder = st.empty()
-    raw_text = ""
-    groq_ok = False
-
-    try:
-        for chunk in call_groq_stream(
-            snapshot=snapshot,
-            api_key=api_key,
-            model=model,
-            temperature=float(temperature),
-            max_output_tokens=int(max_tokens),
-        ):
-            raw_text += chunk
-            placeholder.markdown(raw_text)
-        groq_ok = True
-    except Exception as exc:
-        st.warning(
-            f"Groq streaming unavailable ({type(exc).__name__}). "
-            "Switching to heuristic recommendations.",
-            icon="⚠️",
-        )
-
-    if groq_ok:
-        rec_dict = parse_and_validate(raw_text)
-        if rec_dict is None:
-            st.warning(
-                "Groq returned output that could not be parsed. "
-                "Showing heuristic recommendations instead.",
-                icon="⚠️",
+    if api_key:
+        preview_text = ""
+        try:
+            with st.spinner("Streaming Draft / Preview..."):
+                for chunk in stream_draft_preview(
+                    snapshot,
+                    api_key=api_key,
+                    preview_model=preview_model,
+                ):
+                    preview_text += chunk
+                    preview_placeholder.markdown(f"#### Draft / Preview\n\n{preview_text}")
+            st.session_state["draft_preview"] = preview_text
+        except Exception as exc:
+            st.session_state["draft_notice"] = (
+                f"Draft / Preview was unavailable ({type(exc).__name__}). Proceeding directly to the final authoritative result."
             )
-
-elif api_key and not use_stream:
-    with st.spinner("Calling Groq…"):
-        rec_dict, warning_msg = rec_service.recommend(
-            snapshot=snapshot,
-            api_key=api_key,
-            model=model,
-            temperature=float(temperature),
-            max_output_tokens=int(max_tokens),
-            stream=False,
+    else:
+        st.session_state["draft_notice"] = (
+            "No API key is available, so Draft / Preview streaming is skipped and the page will use deterministic heuristic logic."
         )
 
-# --- Fallback ---
-if rec_dict is None:
-    rec_dict, warning_msg = rec_service.recommend(snapshot, api_key=None)
+    with st.spinner("Generating Final authoritative recommendations..."):
+        payload, warning, source = recommend(snapshot, api_key=api_key, final_model=final_model)
+    st.session_state["recommendation_payload"] = payload
+    st.session_state["recommendation_warning"] = warning
+    st.session_state["recommendation_source"] = source
 
-if warning_msg:
-    st.warning(warning_msg, icon="ℹ️")
+if st.session_state["draft_preview"]:
+    render_section_header("Draft / Preview", "Fast, non-authoritative text streamed from the preview model.")
+    st.markdown(st.session_state["draft_preview"])
+if st.session_state["draft_notice"]:
+    st.info(st.session_state["draft_notice"])
 
-# ── Render structured panels ──────────────────────────────────────────────────
-st.divider()
-st.subheader("Executive Summary")
-st.markdown(f"> {rec_dict.get('executive_summary', '—')}")
+payload = st.session_state["recommendation_payload"]
+if payload is None:
+    st.info("Click Generate recommendations to produce the Draft preview and the Final authoritative recommendation set.")
+    st.stop()
 
-confidence = rec_dict.get("confidence", 0.0)
-st.caption(f"Confidence: {float(confidence):.0%}")
+render_section_header("Final authoritative recommendations", "This structured JSON is the only output used for panels and export.")
+render_status_badges(
+    [
+        {"label": "Result source", "status": "OK" if st.session_state["recommendation_source"] == "groq_final" else "WARN"},
+        {"label": "Overall posture", "status": payload["summary"]["status"]},
+    ]
+)
+if st.session_state["recommendation_warning"]:
+    st.warning(st.session_state["recommendation_warning"])
 
-col_l, col_r = st.columns(2)
+summary = payload["summary"]
+st.markdown(f"### {summary['headline']}")
+st.caption(
+    f"Status: {summary['status']} | Go/No-Go: {summary['go_no_go']} | Confidence: {summary['confidence']:.0%}"
+)
+st.markdown("\n".join(f"- {line}" for line in summary["rationale"]))
 
-with col_l:
-    st.subheader("🔴 Top Risks")
-    for risk in rec_dict.get("top_risks", []):
-        with st.expander(f"**{risk.get('risk', '?')}**"):
-            st.markdown(f"**Impact**: {risk.get('impact', '—')}")
-            st.markdown(f"**Evidence**: {risk.get('evidence', '—')}")
-            st.markdown(f"**Owner**: {risk.get('owner', '—')}")
-            st.markdown(f"**Next Action**: {risk.get('next_action', '—')}")
+top_left, top_right = st.columns(2)
+with top_left:
+    render_section_header("Top risks", "These are the talking points to keep in the interview script.")
+    _render_signal_list(payload["top_risks"], "title")
+with top_right:
+    render_section_header("Next actions", "The final JSON is structured so the actions can be exported cleanly.")
+    _render_signal_list(payload["next_actions"], "action")
 
-    st.subheader("📅 Actions — Next 24 h")
-    for a in rec_dict.get("actions_next_24h", []):
-        st.markdown(f"- {a}")
+mid_left, mid_right = st.columns(2)
+with mid_left:
+    render_section_header("Incident improvements", "Operational discipline improvements grounded in the current snapshot.")
+    _render_signal_list(payload["incident_improvements"], "title")
+with mid_right:
+    render_section_header("Vendor flags", "Supplier accountability and penalty exposure.")
+    _render_signal_list(payload["vendor_flags"], "vendor")
 
-with col_r:
-    st.subheader("📅 Actions — Next 7 Days")
-    for a in rec_dict.get("actions_next_7d", []):
-        st.markdown(f"- {a}")
+bottom_left, bottom_right = st.columns(2)
+with bottom_left:
+    render_section_header("OT signals", "Live alarm conditions and control-room follow-up.")
+    _render_signal_list(payload["ot_signals"], "signal")
+with bottom_right:
+    render_section_header("Ticketing signals", "Guest-entry performance conditions included in the final result.")
+    _render_signal_list(payload["ticketing_signals"], "signal")
 
-    st.subheader("❓ Vendor Questions")
-    for q in rec_dict.get("vendor_questions", []):
-        st.markdown(f"- {q}")
+render_download_buttons(
+    [
+        {
+            "label": "Download final JSON",
+            "data": json.dumps(payload, indent=2).encode("utf-8"),
+            "file_name": "recommendations_final.json",
+            "mime": "application/json",
+        },
+        {
+            "label": "Download snapshot JSON",
+            "data": json.dumps(snapshot, indent=2).encode("utf-8"),
+            "file_name": "recommendations_snapshot.json",
+            "mime": "application/json",
+        },
+    ]
+)
 
-st.divider()
-col3, col4 = st.columns(2)
-
-with col3:
-    st.subheader("🏗️ OT Signals")
-    for sig in rec_dict.get("ot_signals", []):
-        st.markdown(f"- {sig}")
-
-    st.subheader("🎫 Ticketing Signals")
-    for sig in rec_dict.get("ticketing_signals", []):
-        st.markdown(f"- {sig}")
-
-with col4:
-    st.subheader("🔧 Incident Improvements")
-    for imp in rec_dict.get("incident_improvements", []):
-        st.markdown(f"- {imp}")
-
-    st.subheader("🤝 Vendor Flags")
-    for flag in rec_dict.get("vendor_flags", []):
-        st.markdown(f"- {flag}")
-
-st.divider()
-col_kpi, col_assume = st.columns(2)
-
-with col_kpi:
-    st.subheader("📈 KPIs to Watch")
-    for k in rec_dict.get("kpis_to_watch", []):
-        st.markdown(f"**{k.get('kpi','?')}** — {k.get('reason','—')} *(threshold: {k.get('threshold','—')})*")
-
-with col_assume:
-    st.subheader("⚙️ Assumptions")
-    for a in rec_dict.get("assumptions", []):
-        st.markdown(f"- {a}")
-
-st.divider()
-with st.expander("Raw JSON output"):
-    st.json(rec_dict)
-
-# Validation badge
-errors = rec_schema.validate(rec_dict)
-if errors:
-    st.error(f"Schema validation errors: {errors}")
-else:
-    st.success("Output passes schema validation ✓", icon="✅")
+with st.expander("Final authoritative JSON"):
+    st.json(payload)

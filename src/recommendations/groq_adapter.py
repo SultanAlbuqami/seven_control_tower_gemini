@@ -1,86 +1,64 @@
-"""Groq API adapter for recommendations.
-
-Thin wrapper around src.ai.groq_recommender with:
-- streaming support
-- JSON extraction + schema validation
-- single repair attempt on invalid JSON
-"""
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any, Generator
 
 from src.ai.groq_recommender import GroqRecommender
-from src.recommendations.schema import validate
+from src.recommendations.schema import is_valid, repair_response
 from src.utils.json_utils import extract_json
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL = "llama-3.3-70b-versatile"
-_DEFAULT_TEMPERATURE = 0.2
-_DEFAULT_MAX_TOKENS = 1536
+DEFAULT_PREVIEW_MODEL = "llama-3.1-8b-instant"
+DEFAULT_FINAL_MODEL = "llama-3.3-70b-versatile"
 
 
-def call_groq_stream(
+def stream_draft_preview(
     snapshot: dict[str, Any],
+    *,
     api_key: str,
-    model: str = _DEFAULT_MODEL,
-    temperature: float = _DEFAULT_TEMPERATURE,
-    max_output_tokens: int = _DEFAULT_MAX_TOKENS,
+    model: str = DEFAULT_PREVIEW_MODEL,
+    temperature: float = 0.2,
+    max_output_tokens: int = 420,
 ) -> Generator[str, None, None]:
-    """Yield raw text chunks from a streaming Groq call."""
-    rec = GroqRecommender(
+    recommender = GroqRecommender(
         api_key=api_key,
         model=model,
         temperature=temperature,
         max_output_tokens=max_output_tokens,
     )
-    yield from rec.recommend_stream(snapshot)
+    yield from recommender.stream_preview(snapshot)
 
 
-def call_groq_once(
+def request_final_json(
     snapshot: dict[str, Any],
+    *,
     api_key: str,
-    model: str = _DEFAULT_MODEL,
-    temperature: float = _DEFAULT_TEMPERATURE,
-    max_output_tokens: int = _DEFAULT_MAX_TOKENS,
+    model: str = DEFAULT_FINAL_MODEL,
+    temperature: float = 0.1,
+    max_output_tokens: int = 1600,
 ) -> str:
-    """Return full text from a single Groq call."""
-    rec = GroqRecommender(
+    recommender = GroqRecommender(
         api_key=api_key,
         model=model,
         temperature=temperature,
         max_output_tokens=max_output_tokens,
     )
-    return rec.recommend_once(snapshot)
+    return recommender.request_final_json(snapshot)
 
 
 def parse_and_validate(raw_text: str) -> dict[str, Any] | None:
-    """Extract + validate JSON from raw Groq text.
-
-    Returns the dict if valid, None if extraction or validation fails after
-    one repair attempt.
-    """
-    obj = extract_json(raw_text)
-    if obj is None:
-        logger.warning("groq: could not extract JSON from response")
+    payload = extract_json(raw_text)
+    if payload is None:
+        logger.warning("Groq final response did not contain extractable JSON.")
         return None
+    if is_valid(payload):
+        return payload
 
-    errors = validate(obj)
-    if not errors:
-        return obj
+    repaired = repair_response(payload)
+    if repaired is not None:
+        logger.warning("Groq response required one local repair pass before validation.")
+        return repaired
 
-    # --- single repair attempt: strip trailing commas / common LLM artifacts ---
-    logger.warning("groq: invalid JSON schema (%s); attempting repair", errors)
-    try:
-        # Re-serialise + re-parse to canonicalise
-        repaired_text = json.dumps(obj)
-        repaired = json.loads(repaired_text)
-        if not validate(repaired):
-            return repaired
-    except Exception:
-        pass
-
-    logger.warning("groq: repair failed; falling back to heuristic")
+    logger.warning("Groq response failed schema validation after one repair attempt.")
     return None

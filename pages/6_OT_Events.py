@@ -1,162 +1,167 @@
-"""Page 6 — OT Events (BMS / Access Control / CCTV alarm feed).
-
-DISCLAIMER: Source system names are example labels; demo is source-agnostic.
-"""
 from __future__ import annotations
 
-import pandas as pd
 import plotly.express as px
 import streamlit as st
 
 from src.data import ensure_data_and_load
-from src.metrics import compute_ot_mean_ack_minutes
-from src.system_landscape import CORE_BADGE_CATEGORIES, DISCLAIMER, THRESHOLDS
-from src.ui import SEVERITY_COLORS, apply_global_styles, style_plotly, render_kpi_card
-
-st.set_page_config(layout="wide")
-apply_global_styles()
-st.title("🏗️ OT Events")
-st.caption("BMS / Access Control / CCTV alarm feed — example system landscape labels")
-
-# ── Demo mode banner & landscape badges ──────────────────────────────────────
-st.info(
-    "⚡ Synthetic dataset — evidence-driven readiness model — example system landscape labels. "
-    + DISCLAIMER,
-    icon="🔬",
+from src.metrics import ot_event_summary
+from src.system_landscape import THRESHOLDS
+from src.ui import (
+    configure_page,
+    format_table,
+    render_download_buttons,
+    render_kpi_cards,
+    render_lineage_panel,
+    render_page_header,
+    render_section_header,
+    render_status_badges,
+    style_plotly,
 )
-badge_cols = st.columns(len(CORE_BADGE_CATEGORIES))
-for col, cat in zip(badge_cols, CORE_BADGE_CATEGORIES):
-    col.caption(f"**{cat.badge_label}**")
 
-st.divider()
+configure_page("OT Events")
+render_page_header(
+    "OT Events",
+    "Monitor BMS, access-control, CCTV, and fire-alarm events with severity, zone, acknowledgement discipline, and incident linkage.",
+)
 
-# ── Load data ─────────────────────────────────────────────────────────────────
 try:
     data = ensure_data_and_load()
-except Exception as e:
-    st.error(f"Data load error: {e}")
+except Exception as exc:
+    st.error(f"Data load failed: {exc}")
     st.stop()
 
-ot = data.ot_events.copy()
+events = data.ot_events.copy()
 
-if ot.empty:
-    st.warning("No OT event data available.")
-    st.stop()
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    subsystem = st.selectbox("Subsystem", ["All"] + sorted(events["subsystem"].dropna().unique().tolist()))
+with col2:
+    zone = st.selectbox("Zone", ["All"] + sorted(events["zone"].dropna().unique().tolist()))
+with col3:
+    severity = st.selectbox("Severity", ["All", 1, 2, 3, 4])
+with col4:
+    unacked_only = st.toggle("Unacknowledged only", value=False)
 
-# ── Filters ───────────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.subheader("Filters")
-    sev_opts = sorted(ot["severity"].dropna().unique().tolist())
-    sel_sev = st.multiselect("Severity", sev_opts, default=sev_opts, key="ot_sev")
+filtered = events.copy()
+if subsystem != "All":
+    filtered = filtered[filtered["subsystem"] == subsystem]
+if zone != "All":
+    filtered = filtered[filtered["zone"] == zone]
+if severity != "All":
+    filtered = filtered[filtered["severity"] == severity]
+if unacked_only:
+    filtered = filtered[filtered["ack_time"].isna()]
 
-    sub_opts = sorted(ot["subsystem"].dropna().unique().tolist()) if "subsystem" in ot.columns else []
-    sel_sub = st.multiselect("Subsystem", sub_opts, default=sub_opts, key="ot_sub")
+summary = ot_event_summary(filtered)
+render_status_badges(
+    [
+        {"label": "Sev-1 backlog", "status": "CRIT" if summary["unacked_sev1"] > THRESHOLDS["ot_unacked_sev1_warn"] else "OK"},
+        {"label": "Sev-2 backlog", "status": "WARN" if summary["unacked_sev2"] > THRESHOLDS["ot_unacked_sev2_warn"] else "OK"},
+        {"label": "Open OT load", "status": "WARN" if summary["total_open"] >= 14 else "OK"},
+    ]
+)
+render_kpi_cards(
+    [
+        {
+            "title": "Unacknowledged Sev-1",
+            "value": summary["unacked_sev1"],
+            "subtitle": "Any non-zero value should be treated as an interview talking point.",
+            "status": "CRIT" if summary["unacked_sev1"] else "OK",
+        },
+        {
+            "title": "Unacknowledged Sev-2",
+            "value": summary["unacked_sev2"],
+            "subtitle": "Sev-2 backlog indicates response discipline drift.",
+            "status": "WARN" if summary["unacked_sev2"] else "OK",
+        },
+        {
+            "title": "Open OT events",
+            "value": summary["total_open"],
+            "subtitle": "Open means not yet cleared in the synthetic alarm feed.",
+            "status": "WARN" if summary["total_open"] >= 14 else "OK",
+        },
+        {
+            "title": "Mean ack time",
+            "value": f"{summary['mean_ack_min']:.0f} min" if summary["mean_ack_min"] is not None else "-",
+            "subtitle": "This is the control-room response discipline metric.",
+            "status": "WARN" if summary["mean_ack_min"] is not None and summary["mean_ack_min"] > 15 else "OK",
+        },
+    ]
+)
 
-    zone_opts = sorted(ot["zone"].dropna().unique().tolist()) if "zone" in ot.columns else []
-    sel_zone = st.multiselect("Zone", zone_opts, default=zone_opts, key="ot_zone")
-
-    unacked_only = st.checkbox("Unacknowledged only", value=False)
-
-df = ot.copy()
-if sel_sev:
-    df = df[df["severity"].isin(sel_sev)]
-if sel_sub and "subsystem" in df.columns:
-    df = df[df["subsystem"].isin(sel_sub)]
-if sel_zone and "zone" in df.columns:
-    df = df[df["zone"].isin(sel_zone)]
-if unacked_only and "ack_time" in df.columns:
-    df = df[df["ack_time"].isna()]
-
-# ── KPI cards ─────────────────────────────────────────────────────────────────
-unacked_mask = ot["ack_time"].isna() if "ack_time" in ot.columns else pd.Series(False, index=ot.index)
-unacked_sev1 = int((unacked_mask & (ot["severity"] == 1)).sum()) if "severity" in ot.columns else 0
-unacked_sev2 = int((unacked_mask & (ot["severity"] == 2)).sum()) if "severity" in ot.columns else 0
-cleared_mask = ot["cleared_time"].notna() if "cleared_time" in ot.columns else pd.Series(False, index=ot.index)
-open_events = int((~cleared_mask).sum())
-mean_ack = compute_ot_mean_ack_minutes(ot)
-
-c1, c2, c3, c4 = st.columns(4)
-render_kpi_card("Unacked Sev-1", unacked_sev1, icon="alert", color="#fff4f4", delta=("⚠️ ACTION" if unacked_sev1 > THRESHOLDS["ot_unacked_sev1_warn"] else "OK"))
-render_kpi_card("Unacked Sev-2", unacked_sev2, icon="alert", color="#fff7e6", delta=("⚠️ WARN" if unacked_sev2 > THRESHOLDS["ot_unacked_sev2_warn"] else "OK"))
-render_kpi_card("Open (not cleared)", open_events, icon="alert", color="#eef6ff")
-render_kpi_card("Mean Ack Time (min)", f"{mean_ack:.1f}" if mean_ack is not None else "N/A", icon=None, color="#eef6ff")
-
-st.divider()
-
-# ── Charts ─────────────────────────────────────────────────────────────────────
 left, right = st.columns(2)
-
 with left:
-    st.subheader("Events by Subsystem & Severity")
-    if not df.empty and "subsystem" in df.columns:
-        fig = px.histogram(
-            df, x="subsystem", color="severity",
-            color_discrete_map=SEVERITY_COLORS,
-            title="OT Event Count by Subsystem",
-            labels={"subsystem": "Subsystem", "count": "Events"},
-        )
-        style_plotly(fig)
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No data for chart.")
+    render_section_header("Event volume by subsystem", "Use this to show whether the issue is facilities, access, security, or fire-related.")
+    chart = px.histogram(
+        filtered,
+        x="subsystem",
+        color="severity",
+        color_discrete_map={1: "#7F1D1D", 2: "#B43C2F", 3: "#B76A16", 4: "#C68C39"},
+        title="OT events by subsystem",
+    )
+    style_plotly(chart, height=360)
+    st.plotly_chart(chart, use_container_width=True)
 
 with right:
-    st.subheader("Events by Zone & Severity")
-    if not df.empty and "zone" in df.columns:
-        fig2 = px.histogram(
-            df, x="zone", color="severity",
-            color_discrete_map=SEVERITY_COLORS,
-            title="OT Event Count by Zone",
-        )
-        style_plotly(fig2)
-        st.plotly_chart(fig2, use_container_width=True)
-    else:
-        st.info("No data for chart.")
-
-# ── Timeline chart ─────────────────────────────────────────────────────────────
-st.subheader("Event Timeline")
-if not df.empty and "event_time" in df.columns:
-    timeline_df = df.dropna(subset=["event_time"]).copy()
-    if not timeline_df.empty:
-        fig3 = px.scatter(
-            timeline_df,
-            x="event_time",
-            y="zone" if "zone" in timeline_df.columns else timeline_df.index,
-            color="severity",
-            symbol="subsystem" if "subsystem" in timeline_df.columns else None,
-            hover_data=["ot_event_id", "alarm_type", "device_id"] if "ot_event_id" in timeline_df.columns else None,
-            title="OT Alarm Timeline",
-            color_discrete_map=SEVERITY_COLORS,
-        )
-        style_plotly(fig3)
-        st.plotly_chart(fig3, use_container_width=True)
-
-# ── Alarm type breakdown ────────────────────────────────────────────────────────
-st.subheader("Alarm Type Breakdown")
-if not df.empty and "alarm_type" in df.columns:
-    at_counts = df["alarm_type"].value_counts().reset_index()
-    at_counts.columns = ["alarm_type", "count"]
-    fig4 = px.bar(at_counts, x="alarm_type", y="count", color="count",
-                  color_continuous_scale="Reds", title="Alarm Types (filtered)")
-    style_plotly(fig4)
-    st.plotly_chart(fig4, use_container_width=True)
-
-# ── Table & download ───────────────────────────────────────────────────────────
-st.subheader(f"Event table ({len(df)} rows filtered)")
-
-display_cols = [c for c in ["ot_event_id", "source_system", "subsystem", "alarm_type", "zone",
-                             "device_id", "severity", "event_time", "ack_time", "cleared_time",
-                             "acked_by_role", "linked_incident_id"] if c in df.columns]
-st.dataframe(df[display_cols].sort_values("event_time", ascending=False) if "event_time" in df.columns
-             else df[display_cols], use_container_width=True)
-
-csv_bytes = df[display_cols].to_csv(index=False).encode()
-st.download_button("⬇ Download OT Events CSV", csv_bytes, "ot_events_filtered.csv", "text/csv")
-
-# ── Source system note ────────────────────────────────────────────────────────
-with st.expander("Source system note"):
-    st.markdown(
-        "Data labelled with source system: **BMS / Access Control / CCTV Event Feed (example)**. "
-        "In a real deployment, this feed would be ingested via the venue's OT event broker or API gateway. "
-        + DISCLAIMER
+    render_section_header("Zone heat", "Alarm clustering is more compelling than a flat list when you present the OT story.")
+    chart = px.histogram(
+        filtered,
+        x="zone",
+        color="severity",
+        color_discrete_map={1: "#7F1D1D", 2: "#B43C2F", 3: "#B76A16", 4: "#C68C39"},
+        title="OT events by zone",
     )
+    style_plotly(chart, height=360)
+    st.plotly_chart(chart, use_container_width=True)
+
+render_section_header("Alarm timeline", "Linked incident IDs make it clear when OT alarms have already crossed into formal incident handling.")
+timeline = px.scatter(
+    filtered.sort_values("event_time"),
+    x="event_time",
+    y="zone",
+    color="severity",
+    symbol="subsystem",
+    hover_data=["ot_event_id", "alarm_type", "device_id", "linked_incident_id"],
+    color_discrete_map={1: "#7F1D1D", 2: "#B43C2F", 3: "#B76A16", 4: "#C68C39"},
+    title="OT event timeline",
+)
+style_plotly(timeline, height=380)
+st.plotly_chart(timeline, use_container_width=True)
+
+render_section_header("OT alarm register", "Use this table when the panel asks how you would chase one of the alarms down to a device or incident.")
+display_columns = [
+    "ot_event_id",
+    "source_system",
+    "subsystem",
+    "alarm_type",
+    "zone",
+    "device_id",
+    "severity",
+    "event_time",
+    "ack_time",
+    "cleared_time",
+    "acked_by_role",
+    "linked_incident_id",
+]
+st.dataframe(
+    format_table(filtered[display_columns].sort_values("event_time", ascending=False)),
+    use_container_width=True,
+    hide_index=True,
+)
+
+render_download_buttons(
+    [
+        {
+            "label": "Download OT events CSV",
+            "data": filtered.to_csv(index=False).encode("utf-8"),
+            "file_name": "ot_events_filtered.csv",
+            "mime": "text/csv",
+        }
+    ]
+)
+
+render_lineage_panel(
+    filtered,
+    title="Data lineage",
+    trace_fields=["ot_event_id", "device_id", "linked_incident_id"],
+)
